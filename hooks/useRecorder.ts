@@ -9,9 +9,11 @@ import { DURATION_MS } from '../src/constants';
 export interface RecorderConfig {
   canvas: HTMLCanvasElement | null;
   isRecording: boolean;
+  rendererReady?: boolean; // Флаг готовности renderer (обязателен для старта записи)
   onRecordingComplete?: (blob: Blob) => void;
   fps?: number;
   warmupFrames?: number;
+  warmupMs?: number; // Альтернатива warmupFrames - время в миллисекундах
 }
 
 export function useRecorder(config: RecorderConfig) {
@@ -28,23 +30,28 @@ export function useRecorder(config: RecorderConfig) {
     onCompleteRef.current = config.onRecordingComplete;
   }, [config.onRecordingComplete]);
   
-  // Стабилизируем параметры через refs (кроме isRecording и canvas - они в deps)
+  // Стабилизируем параметры через refs (кроме isRecording, canvas, rendererReady - они в deps)
   const fpsRef = useRef(config.fps || 30);
-  const warmupFramesRef = useRef(config.warmupFrames || 20);
+  const warmupFramesRef = useRef(config.warmupFrames ?? 15); // По умолчанию 15 кадров
+  const warmupMsRef = useRef(config.warmupMs ?? 400); // По умолчанию 400ms
+  const rendererReadyRef = useRef(config.rendererReady ?? false);
   
   useEffect(() => {
     fpsRef.current = config.fps || 30;
-    warmupFramesRef.current = config.warmupFrames || 20;
-  }, [config.fps, config.warmupFrames]);
+    warmupFramesRef.current = config.warmupFrames ?? 15;
+    warmupMsRef.current = config.warmupMs ?? 400;
+    rendererReadyRef.current = config.rendererReady ?? false;
+  }, [config.fps, config.warmupFrames, config.warmupMs, config.rendererReady]);
 
   useEffect(() => {
-    // Используем config напрямую для isRecording и canvas (они в deps)
+    // Используем config напрямую для isRecording, canvas, rendererReady (они в deps)
     // Остальные параметры через refs
     const isRecording = config.isRecording;
     const canvas = config.canvas;
+    const rendererReady = config.rendererReady ?? false;
     
-    // Не стартуем запись, если canvas недоступен или не готов
-    if (!isRecording || !canvas) {
+    // Не стартуем запись, если canvas недоступен, renderer не готов или запись не запрошена
+    if (!isRecording || !canvas || !rendererReady) {
       // Останавливаем запись, если canvas недоступен
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try {
@@ -72,7 +79,6 @@ export function useRecorder(config: RecorderConfig) {
 
     const startRecording = async () => {
       const fps = fpsRef.current;
-      const warmupFrames = warmupFramesRef.current;
 
       // КРИТИЧЕСКАЯ ПРОВЕРКА: canvas должен быть готов перед captureStream()
       // Диагностический лог перед стартом записи
@@ -151,9 +157,14 @@ export function useRecorder(config: RecorderConfig) {
       // Устанавливаем флаг перед началом warmup
       isRecordingRef.current = true;
 
-      // Warm-up: ждём несколько кадров перед началом записи
+      // Warm-up: ждём несколько кадров ИЛИ время перед началом записи
       // Это гарантирует, что stream начал генерировать кадры и canvas рендерится
+      const warmupFrames = warmupFramesRef.current;
+      const warmupMs = warmupMsRef.current;
+      const frameTime = 1000 / fps;
+      
       warmupFrameCountRef.current = 0;
+      const warmupStartTime = Date.now();
       
       // Очищаем предыдущий интервал, если есть
       if (warmupIntervalRef.current) {
@@ -162,6 +173,7 @@ export function useRecorder(config: RecorderConfig) {
       
       warmupIntervalRef.current = setInterval(() => {
         warmupFrameCountRef.current++;
+        const elapsedMs = Date.now() - warmupStartTime;
         
         // Проверяем, что track всё ещё активен
         const videoTracks = stream.getVideoTracks();
@@ -180,13 +192,22 @@ export function useRecorder(config: RecorderConfig) {
           return;
         }
 
-        if (warmupFrameCountRef.current >= warmupFrames) {
+        // Завершаем warmup если достигли нужного количества кадров ИЛИ времени
+        const framesReady = warmupFrameCountRef.current >= warmupFrames;
+        const timeReady = elapsedMs >= warmupMs;
+        
+        if (framesReady || timeReady) {
           clearInterval(warmupIntervalRef.current!);
           warmupIntervalRef.current = null;
-          console.log('Warmup complete, starting MediaRecorder');
+          console.log('Warmup complete, starting MediaRecorder', {
+            frames: warmupFrameCountRef.current,
+            elapsedMs,
+            framesReady,
+            timeReady,
+          });
           startMediaRecorder(stream, canvas);
         }
-      }, 1000 / fps);
+      }, frameTime);
     };
 
     const startMediaRecorder = (stream: MediaStream, canvas: HTMLCanvasElement) => {
@@ -245,7 +266,7 @@ export function useRecorder(config: RecorderConfig) {
       try {
         mediaRecorder = new MediaRecorder(stream, {
           mimeType,
-          videoBitsPerSecond: 20_000_000, // 20 Mbps для высокого качества
+          videoBitsPerSecond: 25_000_000, // 25 Mbps для высокого качества (файл будет в MB, не KB)
         });
       } catch (e) {
         console.error('Failed to create MediaRecorder:', e);
@@ -402,6 +423,6 @@ export function useRecorder(config: RecorderConfig) {
       isRecordingRef.current = false;
       warmupFrameCountRef.current = 0;
     };
-  }, [config.isRecording, config.canvas]); // Только isRecording и canvas в deps - стабильные примитивы
+  }, [config.isRecording, config.canvas, config.rendererReady]); // Только примитивы в deps
 }
 
