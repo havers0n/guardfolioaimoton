@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { DURATION_MS } from './src/constants';
+import { DURATION_MS, TIMELINE } from './src/constants';
 import NarrativeTimeline from './components/NarrativeTimeline';
 import VisualEffects from './components/VisualEffects';
 import NarrativeOverlay from './components/NarrativeOverlay';
@@ -33,12 +33,12 @@ const App: React.FC = () => {
   return (
     <NarrativeTimeline>
       {(state) => {
-        // Интерфейс виден во всех фазах, но с разными эффектами
-        // В первых фазах он сильно искажен, в последних - четкий
-        // Показываем логотип начиная с 27 секунды, чтобы он был виден дольше в ярком состоянии
-        const showLogo = state.phase === "CLARITY" && state.elapsed >= 27_000;
-        const showInterfaceContent = state.phase === "SEE" || 
-                                    (state.phase === "CLARITY" && state.elapsed < 27_000);
+        // UI anchor hook: показываем с самого начала (0-0.7s)
+        const isHookPhase = state.phase === "HOOK";
+        // Показываем полный интерфейс начиная с фазы SEE (7.4-10.8s)
+        const showInterfaceContent = state.phase === "SEE" || state.phase === "CLARITY";
+        // Логотип показываем в конце фазы CLARITY (примерно с 13.5s)
+        const showLogo = state.phase === "CLARITY" && state.elapsed >= 13_500;
 
         return (
           <div 
@@ -68,9 +68,18 @@ const App: React.FC = () => {
               <LogoFinal isVisible={true} />
             )}
 
+            {/* UI Anchor Hook (0-0.7s): показываем с самого начала, никакого пустого экрана */}
+            {isHookPhase && (
+              <DistortedInterface phase={state.phase} intensity={state.intensity}>
+                <div className="w-full max-w-2xl">
+                  <RotatingHeader />
+                </div>
+              </DistortedInterface>
+            )}
+
             {/* Основной интерфейс с примененными эффектами */}
-            {/* В первых фазах показываем только искаженный интерфейс без контента */}
-            {!showInterfaceContent && (
+            {/* В фазах OFF, EXPLAIN, THERE показываем только искаженный интерфейс без контента */}
+            {!isHookPhase && !showInterfaceContent && (
               <DistortedInterface phase={state.phase} intensity={state.intensity}>
                 <div className="w-full max-w-2xl opacity-30">
                   <RotatingHeader />
@@ -78,8 +87,8 @@ const App: React.FC = () => {
               </DistortedInterface>
             )}
 
-            {/* В фазах REVELATION и CLARITY показываем полный интерфейс */}
-            {showInterfaceContent && (
+            {/* В фазах SEE и CLARITY показываем полный интерфейс */}
+            {!isHookPhase && showInterfaceContent && (
               <DistortedInterface phase={state.phase} intensity={state.intensity}>
                 <InterfaceContent
                   phase={state.phase}

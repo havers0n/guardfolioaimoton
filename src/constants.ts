@@ -1,13 +1,27 @@
-export const DURATION_MS = 35_000;
+export const DURATION_MS = 15_000;
 
-export type Phase = "OFF" | "EXPLAIN" | "THERE" | "SEE" | "CLARITY";
+export type Phase = "HOOK" | "OFF" | "EXPLAIN" | "THERE" | "SEE" | "CLARITY";
+
+// Единый объект конфигурации таймлайна
+export const TIMELINE = {
+  DURATION_MS: 15_000,
+  FADE_IN_MS: 200,
+  FADE_OUT_MS: 200,
+  HOOK: { fromMs: 0, toMs: 700 },
+  OFF: { fromMs: 700, toMs: 3_000 },
+  EXPLAIN: { fromMs: 3_000, toMs: 5_200 },
+  THERE: { fromMs: 5_200, toMs: 7_400 },
+  SEE: { fromMs: 7_400, toMs: 10_800 },
+  CLARITY: { fromMs: 10_800, toMs: 15_000 },
+} as const;
 
 export const PHASES: Array<{ phase: Phase; fromMs: number; toMs: number; text: string }> = [
-  { phase: "OFF",     fromMs: 0,      toMs: 10_000, text: "Something feels off." },
-  { phase: "EXPLAIN", fromMs: 10_000, toMs: 15_000, text: "You can't explain it." },
-  { phase: "THERE",   fromMs: 15_000, toMs: 20_000, text: "But it's there." },
-  { phase: "SEE",     fromMs: 20_000, toMs: 25_000, text: "Until you see it." },
-  { phase: "CLARITY", fromMs: 25_000, toMs: 35_000, text: "See your real risk." },
+  { phase: "HOOK",    fromMs: 0,      toMs: 700,   text: "" },
+  { phase: "OFF",     fromMs: 700,   toMs: 3_000, text: "Something feels off." },
+  { phase: "EXPLAIN", fromMs: 3_000, toMs: 5_200, text: "You can't explain it." },
+  { phase: "THERE",   fromMs: 5_200, toMs: 7_400, text: "But it's there." },
+  { phase: "SEE",     fromMs: 7_400, toMs: 10_800, text: "Until you see it." },
+  { phase: "CLARITY", fromMs: 10_800, toMs: 15_000, text: "See your real risk." },
 ];
 
 export const TASKS = [

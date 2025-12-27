@@ -6,16 +6,17 @@ const OUTPUT_DIR = "screenshots";
 const WIDTH = 1920;
 const HEIGHT = 1080;
 
-// Тайминги кадров (мс) - по ключевым моментам анимации
+// Тайминги кадров (мс) - по ключевым моментам анимации (15 секунд)
 const FRAMES = [
-  { t: 2000, name: "01_chaos" },      // Ранняя фаза OFF
-  { t: 8000, name: "02_tension" },    // Поздняя фаза OFF
-  { t: 12000, name: "03_emergence" }, // Фаза EXPLAIN
-  { t: 17000, name: "04_structure" }, // Фаза THERE
-  { t: 22000, name: "05_revelation" }, // Фаза SEE
-  { t: 27000, name: "06_logo_start" }, // Начало показа логотипа
-  { t: 30000, name: "07_logo_bright" }, // Логотип в ярком состоянии
-  { t: 33000, name: "08_logo_final" }, // Финальный момент с логотипом
+  { t: 350, name: "01_hook" },        // UI anchor hook (0.35s)
+  { t: 1500, name: "02_off_early" },  // Ранняя фаза OFF (1.5s)
+  { t: 2500, name: "03_off_late" },   // Поздняя фаза OFF (2.5s)
+  { t: 4000, name: "04_explain" },   // Фаза EXPLAIN (4.0s)
+  { t: 6000, name: "05_there" },      // Фаза THERE (6.0s)
+  { t: 9000, name: "06_see" },        // Фаза SEE (9.0s)
+  { t: 12000, name: "07_clarity" },   // Фаза CLARITY (12.0s)
+  { t: 13500, name: "08_logo_start" }, // Начало показа логотипа (13.5s)
+  { t: 14500, name: "09_logo_final" }, // Финальный момент с логотипом (14.5s)
 ];
 
 /**

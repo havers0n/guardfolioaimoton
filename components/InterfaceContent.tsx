@@ -82,7 +82,19 @@ const InterfaceContent: React.FC<InterfaceContentProps> = ({
           {phase === "CLARITY" ? (
             HEADER_CLARITY
           ) : (
-            `${activeTaskLabel}... (${Math.floor(localProgress)}%)`
+            <>
+              {activeTaskLabel}... (
+              <span
+                style={{
+                  filter: 'blur(3px)',
+                  opacity: 0.3,
+                  display: 'inline-block',
+                }}
+              >
+                {Math.floor(localProgress)}%
+              </span>
+              )
+            </>
           )}
         </h1>
         <p className="text-slate-400 mt-2 max-w-md mx-auto">

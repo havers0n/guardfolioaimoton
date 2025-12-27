@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Phase, PHASES } from '../src/constants';
+import { Phase, PHASES, TIMELINE } from '../src/constants';
 import { getPhaseAt } from '../src/timeline';
 
 interface NarrativeOverlayProps {
@@ -8,13 +8,14 @@ interface NarrativeOverlayProps {
 }
 
 const NarrativeOverlay: React.FC<NarrativeOverlayProps> = ({ phase, elapsed }) => {
-  const [isVisible, setIsVisible] = useState(false);
+  const [opacity, setOpacity] = useState(0);
   const phaseInfo = getPhaseAt(elapsed);
 
   useEffect(() => {
     const currentPhaseData = PHASES.find(p => p.phase === phase);
-    if (!currentPhaseData) {
-      setIsVisible(false);
+    if (!currentPhaseData || !currentPhaseData.text) {
+      // Не показываем текст для фазы HOOK (пустая строка)
+      setOpacity(0);
       return;
     }
 
@@ -23,26 +24,42 @@ const NarrativeOverlay: React.FC<NarrativeOverlayProps> = ({ phase, elapsed }) =
     const phaseDuration = phaseEnd - phaseStart;
     const phaseElapsed = elapsed - phaseStart;
 
-    // Для фазы CLARITY скрываем текст раньше, чтобы освободить место для логотипа
-    const hideBeforeEnd = phase === "CLARITY" ? 2000 : 500; // За 2 секунды до конца для CLARITY, 500мс для остальных
+    const fadeInMs = TIMELINE.FADE_IN_MS;
+    const fadeOutMs = TIMELINE.FADE_OUT_MS;
 
-    // Показываем текст с задержкой и держим его видимым
-    if (phaseElapsed >= 300 && phaseElapsed < phaseDuration - hideBeforeEnd) {
-      setIsVisible(true);
-    } else {
-      setIsVisible(false);
+    // Для фазы CLARITY скрываем текст раньше, чтобы освободить место для логотипа
+    const hideBeforeEnd = phase === "CLARITY" ? 2000 : 0;
+
+    // Fade-in период
+    if (phaseElapsed < fadeInMs) {
+      setOpacity(phaseElapsed / fadeInMs);
+    }
+    // Hold период (основное время фазы)
+    else if (phaseElapsed < phaseDuration - fadeOutMs - hideBeforeEnd) {
+      setOpacity(1);
+    }
+    // Fade-out период
+    else if (phaseElapsed < phaseDuration - hideBeforeEnd) {
+      const fadeOutStart = phaseDuration - fadeOutMs - hideBeforeEnd;
+      const fadeOutProgress = (phaseElapsed - fadeOutStart) / fadeOutMs;
+      setOpacity(1 - fadeOutProgress);
+    }
+    // Скрыто
+    else {
+      setOpacity(0);
     }
   }, [phase, elapsed]);
 
-  if (!isVisible) return null;
+  // Не показываем компонент если нет текста или opacity = 0
+  if (!phaseInfo.phaseText || opacity === 0) return null;
 
   return (
     <div
       className="fixed inset-0 flex items-center justify-center pointer-events-none"
       style={{
         zIndex: 60,
-        opacity: isVisible ? 1 : 0,
-        transition: 'opacity 0.5s ease-in-out',
+        opacity: opacity,
+        transition: `opacity ${TIMELINE.FADE_IN_MS}ms ease-in, opacity ${TIMELINE.FADE_OUT_MS}ms ease-out`,
       }}
     >
       <div className="text-center px-8">

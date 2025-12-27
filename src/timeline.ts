@@ -4,6 +4,7 @@ import {
   TASKS,
   REAL_TIME_MESSAGES,
   REAL_TIME_INTERVAL_MS,
+  TIMELINE,
   Phase,
 } from "./constants";
 
@@ -30,10 +31,10 @@ export function getTaskAt(ms: number) {
 }
 
 export function getTaskProgress(ms: number) {
-  // Процент внутри текущей "задачной" зоны (например 20–25с)
+  // Процент внутри фазы SEE (7.4–10.8s)
   const t = ((ms % DURATION_MS) + DURATION_MS) % DURATION_MS;
-  const from = 20_000;
-  const to = 25_000;
+  const from = TIMELINE.SEE.fromMs;
+  const to = TIMELINE.SEE.toMs;
 
   if (t < from) return 0;
   if (t >= to) return 100;

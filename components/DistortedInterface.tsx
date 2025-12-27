@@ -10,6 +10,14 @@ interface DistortedInterfaceProps {
 const DistortedInterface: React.FC<DistortedInterfaceProps> = ({ phase, intensity, children }) => {
   const getWrapperStyles = (): React.CSSProperties => {
     switch (phase) {
+      case "HOOK":
+        // UI anchor hook: очень низкая opacity, сильный blur, никаких искажений
+        return {
+          filter: `blur(${8 + intensity * 4}px)`,
+          transform: `scale(${0.95 + intensity * 0.05})`,
+          opacity: 0.1 + intensity * 0.05,
+          transition: 'all 0.3s ease-out',
+        };
       case "OFF":
         // Искажения и шум - интерфейс размыт и искажен
         return {
