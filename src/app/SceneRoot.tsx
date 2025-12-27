@@ -1,6 +1,6 @@
 /**
  * SceneRoot - корневой компонент сцены.
- * Инкапсулирует логику инициализации engine и renderer.
+ * Максимально простой компонент без логики.
  */
 
 import { useRef } from 'react';
@@ -9,11 +9,7 @@ import { useCanvasRenderer } from '../hooks/useCanvasRenderer';
 
 export function SceneRoot() {
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Инициализируем timeline engine
   const { engine, eventBus } = useTimelineEngine();
-  
-  // Инициализируем canvas renderer
   useCanvasRenderer(containerRef, engine, eventBus);
 
   return (

@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { DURATION_MS } from '../constants';
+import { DURATION_MS } from '../src/constants';
 
 export interface RecorderConfig {
   canvas: HTMLCanvasElement | null;
@@ -22,53 +22,54 @@ export function useRecorder(config: RecorderConfig) {
   const streamRef = useRef<MediaStream | null>(null);
   const warmupFrameCountRef = useRef(0);
   const warmupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startedRef = useRef(false); // Защита от повторного запуска (truly single-run)
+  const isRecordingRef = useRef(false); // Защита от множественных запусков
   
-  // Стабилизируем callback через useRef
+  // Стабилизируем callback через useRef, чтобы не перезапускать effect
   const onCompleteRef = useRef(config.onRecordingComplete);
   useEffect(() => {
     onCompleteRef.current = config.onRecordingComplete;
   }, [config.onRecordingComplete]);
   
-  // Стабилизируем параметры через refs
+  // Стабилизируем параметры через refs (кроме isRecording, canvas, rendererReady - они в deps)
   const fpsRef = useRef(config.fps || 30);
-  const warmupFramesRef = useRef(config.warmupFrames ?? 15);
-  const warmupMsRef = useRef(config.warmupMs ?? 400);
-  const canvasRef = useRef(config.canvas);
-  const isRecordingRef = useRef(config.isRecording);
+  const warmupFramesRef = useRef(config.warmupFrames ?? 15); // По умолчанию 15 кадров
+  const warmupMsRef = useRef(config.warmupMs ?? 400); // По умолчанию 400ms
+  const rendererReadyRef = useRef(config.rendererReady ?? false);
   
   useEffect(() => {
     fpsRef.current = config.fps || 30;
     warmupFramesRef.current = config.warmupFrames ?? 15;
     warmupMsRef.current = config.warmupMs ?? 400;
-    canvasRef.current = config.canvas;
-    isRecordingRef.current = config.isRecording;
-  }, [config.fps, config.warmupFrames, config.warmupMs, config.canvas, config.isRecording]);
+    rendererReadyRef.current = config.rendererReady ?? false;
+  }, [config.fps, config.warmupFrames, config.warmupMs, config.rendererReady]);
 
-  // Truly single-run: запускается только один раз при rendererReady
   useEffect(() => {
+    // Используем config напрямую для isRecording, canvas, rendererReady (они в deps)
+    // Остальные параметры через refs
+    const isRecording = config.isRecording;
+    const canvas = config.canvas;
     const rendererReady = config.rendererReady ?? false;
     
-    // Не стартуем, если renderer не готов или уже запустили
-    if (!rendererReady || startedRef.current) {
+    // Не стартуем запись, если canvas недоступен, renderer не готов или запись не запрошена
+    if (!isRecording || !canvas || !rendererReady) {
+      // Останавливаем запись, если canvas недоступен
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {
+          console.warn('Error stopping recorder:', e);
+        }
+      }
+      // Очищаем флаг при остановке
+      isRecordingRef.current = false;
       return;
     }
 
-    // Не стартуем, если запись не запрошена или canvas недоступен
-    if (!isRecordingRef.current || !canvasRef.current) {
+    // Защита от множественных запусков
+    if (isRecordingRef.current) {
+      console.warn('Recording already in progress, skipping duplicate start');
       return;
     }
-
-    const canvas = canvasRef.current;
-    
-    // Проверяем, что canvas действительно существует
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      console.error('Canvas is not a valid HTMLCanvasElement');
-      return;
-    }
-
-    // Устанавливаем флаг перед стартом (защита от повторного запуска)
-    startedRef.current = true;
 
     // Проверяем, что canvas действительно существует и является HTMLCanvasElement
     if (!(canvas instanceof HTMLCanvasElement)) {
@@ -153,7 +154,8 @@ export function useRecorder(config: RecorderConfig) {
         });
       }
 
-      // Флаг startedRef уже установлен выше - запись началась
+      // Устанавливаем флаг перед началом warmup
+      isRecordingRef.current = true;
 
       // Warm-up: ждём несколько кадров ИЛИ время перед началом записи
       // Это гарантирует, что stream начал генерировать кадры и canvas рендерится
@@ -183,7 +185,7 @@ export function useRecorder(config: RecorderConfig) {
           });
           clearInterval(warmupIntervalRef.current!);
           warmupIntervalRef.current = null;
-          startedRef.current = false; // Сбрасываем флаг при ошибке для возможности повторной попытки
+          isRecordingRef.current = false;
           // Останавливаем stream при ошибке
           stream.getTracks().forEach(track => track.stop());
           streamRef.current = null;
@@ -380,11 +382,47 @@ export function useRecorder(config: RecorderConfig) {
 
     startRecording();
 
-    // Cleanup: ничего не делаем - запись должна завершиться сама
-    // В StrictMode cleanup не должен прерывать запись
     return () => {
-      // Пустой cleanup - запись продолжается до завершения
+      // Cleanup: останавливаем все процессы записи
+      console.log('useRecorder cleanup: stopping all recording processes');
+      
+      // Останавливаем warmup интервал
+      if (warmupIntervalRef.current) {
+        clearInterval(warmupIntervalRef.current);
+        warmupIntervalRef.current = null;
+      }
+      
+      // Останавливаем MediaRecorder
+      if (mediaRecorderRef.current) {
+        const timer = (mediaRecorderRef.current as any).__stopTimer;
+        if (timer) {
+          clearTimeout(timer);
+        }
+        
+        if (mediaRecorderRef.current.state === 'recording') {
+          try {
+            mediaRecorderRef.current.stop();
+          } catch (e) {
+            console.error('Error stopping recorder in cleanup:', e);
+          }
+        }
+      }
+
+      // Останавливаем все tracks и очищаем stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+          console.log('Track stopped in cleanup:', track.id);
+        });
+        streamRef.current = null;
+      }
+
+      // Сбрасываем все refs
+      mediaRecorderRef.current = null;
+      chunksRef.current = [];
+      isRecordingRef.current = false;
+      warmupFrameCountRef.current = 0;
     };
-  }, [config.rendererReady]); // Только rendererReady в deps - truly single-run
+  }, [config.isRecording, config.canvas, config.rendererReady]); // Только примитивы в deps
 }
 

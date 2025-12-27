@@ -1,10 +1,11 @@
 /**
  * useCanvasRenderer - React hook для управления canvas renderer.
- * Создает и управляет жизненным циклом CanvasRenderer.
+ * Использует singleton для защиты от StrictMode re-render.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import { getRenderer, getRendererSync } from '../renderer/rendererSingleton';
 import { CanvasRenderer } from '../renderer/CanvasRenderer';
 import { TimelineEngine } from '../engine/timelineEngine';
 import { EventBus } from '../engine/eventBus';
@@ -17,31 +18,16 @@ export function useCanvasRenderer(
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const [isReady, setIsReady] = useState(false);
 
-  // Инициализация renderer (не зависит от engine/eventBus)
+  // Инициализация renderer через singleton (защита от StrictMode)
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Guard: если renderer уже создан, не создаём новый (StrictMode safe)
-    if (rendererRef.current) {
-      console.log('Renderer already exists, skipping creation');
-      return;
-    }
-
     let cancelled = false;
-    const renderer = new CanvasRenderer({
-      container: containerRef.current,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: 0x0b1120,
-      antialias: true,
-    });
 
-    rendererRef.current = renderer;
-
-    // Асинхронная инициализация PixiJS v8
+    // Получаем или создаём renderer через singleton
     (async () => {
       try {
-        await renderer.init({
+        const renderer = await getRenderer({
           container: containerRef.current!,
           width: window.innerWidth,
           height: window.innerHeight,
@@ -49,52 +35,40 @@ export function useCanvasRenderer(
           antialias: true,
         });
 
-        // Проверяем, не был ли компонент размонтирован во время инициализации
+        // Проверяем, не был ли компонент размонтирован
         if (cancelled) {
-          renderer.destroy();
           return;
         }
 
-        // Запускаем render loop только после успешной инициализации
-        // Renderer будет работать даже без engine (с пустым состоянием)
-        renderer.start();
-
-        // Устанавливаем флаг готовности только после успешного init()
+        rendererRef.current = renderer;
         setIsReady(true);
       } catch (error) {
         console.error('Error initializing CanvasRenderer:', error);
-        // Очищаем при ошибке инициализации
         if (!cancelled) {
-          renderer.destroy();
-          rendererRef.current = null;
+          setIsReady(false);
         }
-        setIsReady(false);
       }
     })();
 
     return () => {
       cancelled = true;
-      setIsReady(false);
-      // Безопасный cleanup: destroy идемпотентен
-      if (rendererRef.current) {
-        rendererRef.current.destroy();
-        rendererRef.current = null;
-      }
+      // НЕ вызываем destroy здесь - singleton управляет жизненным циклом
+      // destroy будет вызван только при закрытии приложения
     };
-  }, [containerRef]); // Только containerRef в deps - стабильная ссылка
+  }, [containerRef]); // Только containerRef в deps
 
   // Подключение engine к renderer (отдельный эффект)
   useEffect(() => {
-    if (!rendererRef.current || !isReady || !engine || !eventBus) {
-      if (rendererRef.current && isReady && (!engine || !eventBus)) {
-        console.warn('Renderer ready but engine/eventBus not available yet');
-      }
+    // Получаем renderer из singleton (может быть уже готов)
+    const renderer = rendererRef.current || getRendererSync();
+    
+    if (!renderer || !isReady || !engine || !eventBus) {
       return;
     }
 
     // Подключаем engine к renderer
     console.log('Connecting engine to renderer');
-    rendererRef.current.connectEngine(engine, eventBus);
+    renderer.connectEngine(engine, eventBus);
   }, [isReady, engine, eventBus]);
 
   return { rendererRef, isReady };

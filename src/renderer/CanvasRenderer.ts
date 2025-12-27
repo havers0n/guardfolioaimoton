@@ -411,8 +411,16 @@ export class CanvasRenderer {
   /**
    * Очищает все ресурсы.
    * Идемпотентный: безопасен при двойном вызове и частично созданном состоянии.
+   * 
+   * ВНИМАНИЕ: В dev режиме destroy пропускается для защиты от StrictMode.
    */
   destroy(): void {
+    // Защита от destroy в dev (StrictMode)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[CanvasRenderer] Destroy skipped in dev mode (StrictMode protection)');
+      return;
+    }
+
     // Останавливаем render loop
     this.stop();
     
