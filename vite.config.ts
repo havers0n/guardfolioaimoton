@@ -23,5 +23,12 @@ export default defineConfig(({ mode }) => {
         globals: true,
         environment: 'jsdom',
       },
+      build: {
+        rollupOptions: {
+          input: {
+            main: path.resolve(__dirname, 'index.html'),
+          },
+        },
+      },
     };
 });

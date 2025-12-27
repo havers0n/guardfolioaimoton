@@ -25,3 +25,5 @@ renders
 *.njsproj
 *.sln
 *.sw?
+
+*storybook.log

@@ -1,13 +1,47 @@
+/**
+ * Timeline Functions - функции для вычисления состояния timeline.
+ * 
+ * Теперь используют compiled spec вместо хардкода констант.
+ */
+
+import type { CompiledSpec } from './engine/spec';
 import {
-  DURATION_MS,
-  TIMELINE,
-  MACRO_PHASES,
-  NARRATIVE_WINDOWS,
-  DYNAMIC_HEADERS,
-  BEAM_SCHEDULE,
-  Phase,
-  MacroPhase,
-} from "./constants";
+  findPhaseAt,
+  findMacroPhaseAt,
+  findNarrativeWindow,
+  findDynamicHeader,
+  findBeamEvent,
+  findChartRoleAt,
+} from './engine/spec';
+
+/**
+ * Глобальный compiled spec (устанавливается при инициализации)
+ */
+let compiledSpec: CompiledSpec | null = null;
+
+/**
+ * Устанавливает compiled spec для использования в функциях timeline
+ */
+export function setCompiledSpec(spec: CompiledSpec): void {
+  compiledSpec = spec;
+}
+
+/**
+ * Получает текущий compiled spec
+ */
+export function getCompiledSpec(): CompiledSpec | null {
+  return compiledSpec;
+}
+
+/**
+ * Проверяет, что spec установлен
+ */
+function ensureSpec(): CompiledSpec {
+  if (!compiledSpec) {
+    throw new Error('Compiled spec not set. Call setCompiledSpec() first.');
+  }
+  return compiledSpec;
+}
 
 export function clamp01(x: number) {
   return Math.max(0, Math.min(1, x));
@@ -18,21 +52,14 @@ export function lerp(start: number, end: number, t: number) {
 }
 
 // Phase helpers
-export function getPhaseAt(ms: number): Phase {
-  if (ms < TIMELINE.SIGNAL.toMs) return 'SIGNAL';
-  if (ms < TIMELINE.RISK_EMERGENCE.toMs) return 'RISK_EMERGENCE';
-  if (ms < TIMELINE.BREATHING.toMs) return 'BREATHING';
-  if (ms < TIMELINE.FLASH_RAYS.toMs) return 'FLASH_RAYS';
-  if (ms < TIMELINE.ENERGY_FLOW.toMs) return 'ENERGY_FLOW';
-  if (ms < TIMELINE.ANALYSIS_COMPLETE.toMs) return 'ANALYSIS_COMPLETE';
-  return 'CLARITY_LOGO';
+export function getPhaseAt(ms: number): string {
+  const spec = ensureSpec();
+  return findPhaseAt(spec, ms);
 }
 
-export function getMacroPhaseAt(ms: number): MacroPhase {
-  if (ms < MACRO_PHASES.SIGNAL.toMs) return 'SIGNAL';
-  if (ms < MACRO_PHASES.INTERPRETATION.toMs) return 'INTERPRETATION';
-  if (ms < MACRO_PHASES.STRUCTURE.toMs) return 'STRUCTURE';
-  return 'CLARITY';
+export function getMacroPhaseAt(ms: number): string {
+  const spec = ensureSpec();
+  return findMacroPhaseAt(spec, ms);
 }
 
 // Chart Role Logic
@@ -44,70 +71,23 @@ export interface ChartRoleParams {
 }
 
 export function getChartRoleAt(ms: number): { role: ChartRole; params: ChartRoleParams } {
-  // 0–4s => signal (хаос графиков)
-  // 4–10s => context (появление красных точек, дыхание UI)
-  // 10–25s => foundation (чистый UI, лучи, анализ)
-  
-  let role: ChartRole = 'signal';
-  let t = 0;
-
-  if (ms < 4_000) {
-    role = 'signal';
-    // signal (0-4s): хаос графиков - opacity 0.08→0.75, blur 6→1, scale 0.96→1.0
-    t = ms / 4_000;
-    // Special ease-in for signal
-    const easeT = t * t * (3 - 2 * t);
-    
-    return {
-      role,
-      params: {
-        opacity: lerp(0.08, 0.75, easeT),
-        blur: lerp(6, 1, easeT),
-        scale: lerp(0.96, 1.0, easeT)
-      }
-    };
-  } else if (ms < 10_000) {
-    role = 'context';
-    // context (4-10s): появление красных точек, дыхание UI - opacity 0.40→0.20, blur 2→5, scale 0.98→0.90
-    t = (ms - 4_000) / 6_000; // 0..1 over 6s
-    const easeT = t * t * (3 - 2 * t);
-
-    return {
-      role,
-      params: {
-        opacity: lerp(0.40, 0.20, easeT),
-        blur: lerp(2, 5, easeT),
-        scale: lerp(0.98, 0.90, easeT)
-      }
-    };
-  } else {
-    role = 'foundation';
-    // foundation (10-25s): чистый UI - opacity 0.20→0.02, blur 5→9, scale 0.90→0.85
-    t = (ms - 10_000) / (25_000 - 10_000); // 0..1 over 15s
-    const easeT = t * t * (3 - 2 * t);
-
-    return {
-      role,
-      params: {
-        opacity: lerp(0.20, 0.02, easeT),
-        blur: lerp(5, 9, easeT),
-        scale: lerp(0.90, 0.85, easeT)
-      }
-    };
-  }
+  const spec = ensureSpec();
+  return findChartRoleAt(spec, ms);
 }
 
 // Narrative & Headers
 export function getNarrativeWindow(ms: number) {
-  return NARRATIVE_WINDOWS.find(w => ms >= w.start && ms < w.end);
+  const spec = ensureSpec();
+  return findNarrativeWindow(spec, ms);
 }
 
 export function isNarrativeInterrupt(ms: number): boolean {
   return !!getNarrativeWindow(ms);
 }
 
-export function getDynamicHeader(ms: number) {
-  return DYNAMIC_HEADERS.find(h => ms >= h.start && ms < h.end)?.text;
+export function getDynamicHeader(ms: number): string | null {
+  const spec = ensureSpec();
+  return findDynamicHeader(spec, ms);
 }
 
 // Beam & Task Logic
@@ -118,26 +98,14 @@ export interface EnergyBeamEvent {
 }
 
 export function getEnergyBeamEvent(ms: number): EnergyBeamEvent | null {
-  for (const beam of BEAM_SCHEDULE) {
-    // Charging: 100ms before start
-    const chargeStart = beam.start - 100;
-    
-    if (ms >= chargeStart && ms < beam.start) {
-      const chargeProgress = (ms - chargeStart) / 100;
-      return { taskIndex: beam.taskIndex, t: chargeProgress, phase: 'charging' };
-    }
-    
-    if (ms >= beam.start && ms < beam.end) {
-      const fireProgress = (ms - beam.start) / (beam.end - beam.start);
-      return { taskIndex: beam.taskIndex, t: fireProgress, phase: 'firing' };
-    }
-  }
-  return null;
+  const spec = ensureSpec();
+  return findBeamEvent(spec, ms);
 }
 
 export function getVisibleTasksCount(ms: number): number {
+  const spec = ensureSpec();
   let count = 0;
-  for (const beam of BEAM_SCHEDULE) {
+  for (const beam of spec.beamSchedule) {
     if (ms >= beam.end) {
       count++;
     }
@@ -146,7 +114,8 @@ export function getVisibleTasksCount(ms: number): number {
 }
 
 export function getTaskImpactIndex(ms: number): number | null {
-  for (const beam of BEAM_SCHEDULE) {
+  const spec = ensureSpec();
+  for (const beam of spec.beamSchedule) {
     // Highlight for 400ms after impact
     if (ms >= beam.end && ms < beam.end + 400) {
       return beam.taskIndex;
@@ -156,17 +125,37 @@ export function getTaskImpactIndex(ms: number): number | null {
 }
 
 export function getTaskProgress(ms: number): number {
-  if (ms < 10_000) return 0;
-  // FLASH_RAYS (10s) -> ANALYSIS_COMPLETE (20s)
-  const runDuration = 20_000 - 10_000;
-  const progress = (ms - 10_000) / runDuration;
+  const spec = ensureSpec();
+  // Находим фазу FLASH_RAYS для начала прогресса
+  const flashRaysPhase = spec.phases.find(p => p.phase === 'FLASH_RAYS');
+  const analysisCompletePhase = spec.phases.find(p => p.phase === 'ANALYSIS_COMPLETE');
+  
+  if (!flashRaysPhase || !analysisCompletePhase) {
+    return 0;
+  }
+  
+  if (ms < flashRaysPhase.fromMs) return 0;
+  
+  const runDuration = analysisCompletePhase.fromMs - flashRaysPhase.fromMs;
+  const progress = (ms - flashRaysPhase.fromMs) / runDuration;
   return clamp01(progress) * 100;
 }
 
-// UI Breathing effect (7-10s)
+// UI Breathing effect
 export function getUIBreathing(ms: number): number {
-  if (ms < 7_000 || ms >= 10_000) return 0;
+  const spec = ensureSpec();
+  
+  if (!spec.uiBreathing) {
+    return 0;
+  }
+  
+  const { fromMs, toMs, cycleMs, amplitude } = spec.uiBreathing;
+  
+  if (ms < fromMs || ms >= toMs) {
+    return 0;
+  }
+  
   // Breathing: subtle scale pulse during BREATHING phase
-  const breathingCycle = (ms - 7_000) / 500; // 500ms cycle
-  return Math.sin(breathingCycle * Math.PI * 2) * 0.02; // +/- 2% scale variation
+  const breathingCycle = (ms - fromMs) / cycleMs;
+  return Math.sin(breathingCycle * Math.PI * 2) * amplitude;
 }

@@ -69,4 +69,4 @@ export const TASKS = [
 ];
 
 export const BRAND = "GUARDFOLIO AI";
-export const TAGLINE = "See the risk others miss.";
+export const TAGLINE = "Understand your portfolio.";

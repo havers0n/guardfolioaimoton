@@ -1,10 +1,16 @@
 /**
  * useCanvasRenderer - минимальный bootstrap для renderer.
+ * 
+ * @deprecated Этот хук использует старую архитектуру с rendererSingleton.
+ * Используйте новую архитектуру вариант C: PlaybackHost, GalleryHost, ExportHost.
+ * Каждый Host создаёт и владеет своим renderer.
+ * 
  * Только создаёт renderer, не управляет жизненным циклом.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+// @deprecated rendererSingleton - используйте новую архитектуру вариант C
 import { getRenderer, getRendererSync } from '../renderer/rendererSingleton';
 import { CanvasRenderer } from '../renderer/CanvasRenderer';
 import { TimelineEngine } from '../engine/timelineEngine';
