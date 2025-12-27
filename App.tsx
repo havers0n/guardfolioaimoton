@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { NarrativePhase } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { DURATION_MS } from './src/constants';
 import NarrativeTimeline from './components/NarrativeTimeline';
 import VisualEffects from './components/VisualEffects';
 import NarrativeOverlay from './components/NarrativeOverlay';
@@ -7,16 +7,27 @@ import DistortedInterface from './components/DistortedInterface';
 import LogoFinal from './components/LogoFinal';
 import InterfaceContent from './components/InterfaceContent';
 import RotatingHeader from './components/RotatingHeader';
+import VideoRecorder from './components/VideoRecorder';
+import { useCleanRecordingMode } from './hooks/useCleanRecordingMode';
 
 const App: React.FC = () => {
-  const [currentRealTimeMsg, setCurrentRealTimeMsg] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Real-time message rotation
+  // Включаем "чистый" режим записи
+  useCleanRecordingMode(isRecording);
+
+  // Автозапуск записи при монтировании и установка времени старта для скриншотов
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentRealTimeMsg(prev => (prev + 1) % 5);
-    }, 4000);
-    return () => clearInterval(timer);
+    // Устанавливаем время старта для синхронизации скриншотов Playwright
+    // Используем performance.now() для более точной синхронизации
+    (window as any).__START_TIME__ = performance.now();
+    
+    // Небольшая задержка для полной загрузки
+    const timer = setTimeout(() => {
+      setIsRecording(true);
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -24,12 +35,28 @@ const App: React.FC = () => {
       {(state) => {
         // Интерфейс виден во всех фазах, но с разными эффектами
         // В первых фазах он сильно искажен, в последних - четкий
-        const showLogo = state.phase === NarrativePhase.CLARITY && state.elapsed >= 25 * 1000;
-        const showInterfaceContent = state.phase === NarrativePhase.REVELATION || 
-                                    state.phase === NarrativePhase.CLARITY;
+        // Показываем логотип начиная с 27 секунды, чтобы он был виден дольше в ярком состоянии
+        const showLogo = state.phase === "CLARITY" && state.elapsed >= 27_000;
+        const showInterfaceContent = state.phase === "SEE" || 
+                                    (state.phase === "CLARITY" && state.elapsed < 27_000);
 
         return (
-          <div className="min-h-screen bg-[#0b1120] flex flex-col items-center justify-center p-6 sm:p-12 overflow-hidden relative">
+          <div 
+            ref={containerRef}
+            className="min-h-screen bg-[#0b1120] flex flex-col items-center justify-center p-6 sm:p-12 overflow-hidden relative"
+            data-recording-container
+          >
+            {/* Компонент записи видео */}
+            {containerRef.current && (
+              <VideoRecorder 
+                containerRef={containerRef} 
+                isRecording={isRecording}
+                onRecordingComplete={(blob) => {
+                  console.log('Recording completed. File size:', blob.size, 'bytes');
+                  setIsRecording(false);
+                }}
+              />
+            )}
             {/* Визуальные эффекты (шум, glitch, разрывы) */}
             <VisualEffects phase={state.phase} intensity={state.intensity} />
 
@@ -57,7 +84,7 @@ const App: React.FC = () => {
                 <InterfaceContent
                   phase={state.phase}
                   elapsed={state.elapsed}
-                  currentRealTimeMsg={currentRealTimeMsg}
+                  currentRealTimeMsg={0}
                   onProgressUpdate={() => {}}
                 />
               </DistortedInterface>

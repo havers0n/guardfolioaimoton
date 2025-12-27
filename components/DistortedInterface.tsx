@@ -1,8 +1,8 @@
 import React from 'react';
-import { NarrativePhase } from '../types';
+import { Phase } from '../src/constants';
 
 interface DistortedInterfaceProps {
-  phase: NarrativePhase;
+  phase: Phase;
   intensity: number;
   children: React.ReactNode;
 }
@@ -10,7 +10,7 @@ interface DistortedInterfaceProps {
 const DistortedInterface: React.FC<DistortedInterfaceProps> = ({ phase, intensity, children }) => {
   const getWrapperStyles = (): React.CSSProperties => {
     switch (phase) {
-      case NarrativePhase.DISTORTION:
+      case "OFF":
         // Искажения и шум - интерфейс размыт и искажен
         return {
           filter: `blur(${intensity * 6}px) contrast(${1 + intensity * 0.8}) saturate(${1 + intensity * 0.5}) hue-rotate(${intensity * 20}deg)`,
@@ -18,7 +18,7 @@ const DistortedInterface: React.FC<DistortedInterfaceProps> = ({ phase, intensit
           opacity: Math.max(0.2, 1 - intensity * 0.5),
           transition: 'none',
         };
-      case NarrativePhase.TENSION:
+      case "EXPLAIN":
         // Разрыв и напряжение - максимальные искажения
         return {
           filter: `blur(${intensity * 12}px) contrast(${1 + intensity * 1.5}) brightness(${1 - intensity * 0.6}) saturate(${1 + intensity * 1.2}) hue-rotate(${intensity * 40}deg)`,
@@ -26,7 +26,7 @@ const DistortedInterface: React.FC<DistortedInterfaceProps> = ({ phase, intensit
           opacity: Math.max(0.15, 1 - intensity * 0.7),
           transition: 'none',
         };
-      case NarrativePhase.PAUSE:
+      case "THERE":
         // Пауза - постепенное возвращение к нормальному виду
         return {
           filter: `blur(${(1 - intensity) * 5}px) contrast(${1 + (1 - intensity) * 0.4})`,
@@ -34,7 +34,7 @@ const DistortedInterface: React.FC<DistortedInterfaceProps> = ({ phase, intensit
           opacity: 0.5 + intensity * 0.5,
           transition: 'all 0.3s ease-out',
         };
-      case NarrativePhase.REVELATION:
+      case "SEE":
         // Откровение - интерфейс начинает появляться четко
         return {
           filter: `blur(${(1 - intensity) * 2}px)`,
@@ -42,7 +42,7 @@ const DistortedInterface: React.FC<DistortedInterfaceProps> = ({ phase, intensit
           opacity: 0.6 + intensity * 0.4,
           transition: 'all 0.5s ease-out',
         };
-      case NarrativePhase.CLARITY:
+      case "CLARITY":
         // Ясность - полностью чистый интерфейс
         return {
           filter: 'blur(0px) contrast(1) brightness(1) saturate(1)',

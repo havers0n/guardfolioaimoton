@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { BRAND, TAGLINE } from '../src/constants';
 
 interface LogoFinalProps {
   isVisible: boolean;
@@ -47,7 +48,7 @@ const LogoFinal: React.FC<LogoFinalProps> = ({ isVisible }) => {
             letterSpacing: '0.02em',
           }}
         >
-          Guardfolio AI
+          {BRAND}
         </h1>
         <p
           className="text-xl sm:text-2xl text-slate-400 font-light tracking-wide"
@@ -56,7 +57,7 @@ const LogoFinal: React.FC<LogoFinalProps> = ({ isVisible }) => {
             transition: 'opacity 1s ease-in-out 0.3s',
           }}
         >
-          Understand your portfolio.
+          {TAGLINE}
         </p>
       </div>
 

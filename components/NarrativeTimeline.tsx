@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { NarrativePhase, NarrativeState } from '../types';
-import { NARRATIVE_TIMELINE } from '../constants';
+import { NarrativeState } from '../types';
+import { DURATION_MS, PHASES } from '../src/constants';
+import { getPhaseAt } from '../src/timeline';
 
 interface NarrativeTimelineProps {
   children: (state: NarrativeState) => React.ReactNode;
@@ -9,54 +10,60 @@ interface NarrativeTimelineProps {
 
 const NarrativeTimeline: React.FC<NarrativeTimelineProps> = ({ children, onComplete }) => {
   const [state, setState] = useState<NarrativeState>({
-    phase: NarrativePhase.DISTORTION,
+    phase: PHASES[0].phase,
     elapsed: 0,
     intensity: 0,
   });
   const startTimeRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const completedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const startTime = Date.now();
     startTimeRef.current = startTime;
+    completedRef.current = false;
 
     const update = () => {
       if (!startTimeRef.current) return;
 
-      const elapsed = (Date.now() - startTimeRef.current) / 1000; // в секундах
+      const elapsedMs = Date.now() - startTimeRef.current;
 
-      if (elapsed >= NARRATIVE_TIMELINE.TOTAL_DURATION) {
+      // Сигнал завершения для headless рендеринга (Playwright)
+      if (elapsedMs >= DURATION_MS && !completedRef.current) {
+        completedRef.current = true;
+        (window as any).__RENDER_DONE__ = true;
+        
+        const phaseInfo = getPhaseAt(DURATION_MS);
         setState({
-          phase: NarrativePhase.CLARITY,
-          elapsed: NARRATIVE_TIMELINE.TOTAL_DURATION * 1000,
+          phase: phaseInfo.phase,
+          elapsed: DURATION_MS,
           intensity: 1,
         });
         if (onComplete) onComplete();
         return;
       }
 
-      // Определяем текущую фазу
-      let currentPhase = NarrativePhase.DISTORTION;
-      let phaseStart = 0;
-      let phaseEnd = 0;
+      if (elapsedMs >= DURATION_MS) {
+        return;
+      }
 
-      for (const [phase, info] of Object.entries(NARRATIVE_TIMELINE.PHASES)) {
-        if (elapsed >= info.start && elapsed < info.end) {
-          currentPhase = phase as NarrativePhase;
-          phaseStart = info.start;
-          phaseEnd = info.end;
-          break;
-        }
+      // Используем функции из timeline.ts
+      const phaseInfo = getPhaseAt(elapsedMs);
+      const currentPhaseData = PHASES.find(p => p.phase === phaseInfo.phase);
+      
+      if (!currentPhaseData) {
+        animationFrameRef.current = requestAnimationFrame(update);
+        return;
       }
 
       // Вычисляем интенсивность в рамках текущей фазы (0-1)
-      const phaseDuration = phaseEnd - phaseStart;
-      const phaseElapsed = elapsed - phaseStart;
+      const phaseDuration = currentPhaseData.toMs - currentPhaseData.fromMs;
+      const phaseElapsed = phaseInfo.tMs - currentPhaseData.fromMs;
       const intensity = Math.max(0, Math.min(1, phaseElapsed / phaseDuration));
 
       setState({
-        phase: currentPhase,
-        elapsed: elapsed * 1000, // в миллисекундах
+        phase: phaseInfo.phase,
+        elapsed: elapsedMs,
         intensity,
       });
 

@@ -1,13 +1,15 @@
 import React, { useEffect } from 'react';
-import { Task, TaskStatus, NarrativePhase } from '../types';
-import { INITIAL_TASKS, REAL_TIME_MESSAGES } from '../constants';
+import { Task, TaskStatus } from '../types';
+import { TASKS, HEADER_CLARITY, SUBTITLE, REAL_TIME_BADGE } from '../src/constants';
+import { getTaskAt, getTaskProgress, getRealTimeMessage } from '../src/timeline';
 import RotatingHeader from './RotatingHeader';
 import TaskItem from './TaskItem';
+import { Phase } from '../src/constants';
 
 interface InterfaceContentProps {
-  phase: NarrativePhase;
+  phase: Phase;
   elapsed: number;
-  currentRealTimeMsg: number;
+  currentRealTimeMsg?: number; // Deprecated: теперь используется getRealTimeMessage
   onProgressUpdate: (progress: number, tasks: Task[]) => void;
 }
 
@@ -17,37 +19,46 @@ const InterfaceContent: React.FC<InterfaceContentProps> = ({
   currentRealTimeMsg,
   onProgressUpdate 
 }) => {
-  const [localTasks, setLocalTasks] = React.useState<Task[]>(INITIAL_TASKS);
+  const [localTasks, setLocalTasks] = React.useState<Task[]>(() => 
+    TASKS.map((label, index) => ({
+      id: `task-${index}`,
+      label,
+      status: TaskStatus.PENDING
+    }))
+  );
   const [localProgress, setLocalProgress] = React.useState(0);
 
   // Синхронизация задач с таймлайном
   useEffect(() => {
-    if (phase === NarrativePhase.REVELATION || phase === NarrativePhase.CLARITY) {
-      const revelationStart = 20 * 1000; // 20 секунд в миллисекундах
-      const elapsedInRevelation = elapsed - revelationStart;
-      const revelationDuration = 5 * 1000; // 5 секунд
-      const progressPercent = Math.min(100, Math.max(0, (elapsedInRevelation / revelationDuration) * 100));
-      
+    if (phase === "SEE" || phase === "CLARITY") {
+      const progressPercent = getTaskProgress(elapsed);
       setLocalProgress(progressPercent);
 
       // Обновляем задачи
       const taskProgress = progressPercent / 100;
-      const updatedTasks = INITIAL_TASKS.map((task, index) => {
-        const taskThreshold = (index + 1) / INITIAL_TASKS.length;
+      const updatedTasks = TASKS.map((label, index) => {
+        const taskId = `task-${index}`;
+        const taskThreshold = (index + 1) / TASKS.length;
+        let status = TaskStatus.PENDING;
+        
         if (taskProgress >= taskThreshold) {
-          return { ...task, status: TaskStatus.COMPLETED };
+          status = TaskStatus.COMPLETED;
         } else if (taskProgress >= taskThreshold - 0.25 && taskProgress < taskThreshold) {
-          return { ...task, status: TaskStatus.LOADING };
-        } else {
-          return { ...task, status: TaskStatus.PENDING };
+          status = TaskStatus.LOADING;
         }
+        
+        return { id: taskId, label, status };
       });
 
       setLocalTasks(updatedTasks);
       onProgressUpdate(progressPercent, updatedTasks);
     } else {
       setLocalProgress(0);
-      const resetTasks = INITIAL_TASKS.map(task => ({ ...task, status: TaskStatus.PENDING }));
+      const resetTasks = TASKS.map((label, index) => ({
+        id: `task-${index}`,
+        label,
+        status: TaskStatus.PENDING
+      }));
       setLocalTasks(resetTasks);
       onProgressUpdate(0, resetTasks);
     }
@@ -55,7 +66,7 @@ const InterfaceContent: React.FC<InterfaceContentProps> = ({
 
   const activeTaskLabel = localTasks.find(task => task.status === TaskStatus.LOADING)?.label || 
                          localTasks.find(task => task.status === TaskStatus.PENDING)?.label || 
-                         "Analysis complete";
+                         HEADER_CLARITY;
 
   return (
     <div className="w-full max-w-2xl">
@@ -65,17 +76,17 @@ const InterfaceContent: React.FC<InterfaceContentProps> = ({
       {/* Main Title */}
       <div className="text-center mb-4">
         <h1 className="text-2xl sm:text-3xl font-bold flex items-center justify-center gap-3">
-          {phase === NarrativePhase.REVELATION && (
+          {phase === "SEE" && (
             <span className="w-3 h-3 bg-blue-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.8)]"></span>
           )}
-          {phase === NarrativePhase.CLARITY ? (
-            "Analysis complete"
+          {phase === "CLARITY" ? (
+            HEADER_CLARITY
           ) : (
             `${activeTaskLabel}... (${Math.floor(localProgress)}%)`
           )}
         </h1>
         <p className="text-slate-400 mt-2 max-w-md mx-auto">
-          Our AI is scanning real-time market data to analyze your portfolio
+          {SUBTITLE}
         </p>
       </div>
 
@@ -97,17 +108,17 @@ const InterfaceContent: React.FC<InterfaceContentProps> = ({
       </div>
 
       {/* Real-time Data Footnote */}
-      {phase === NarrativePhase.CLARITY && localProgress >= 90 && (
+      {phase === "CLARITY" && localProgress >= 90 && (
         <div className="mt-8 w-full max-w-md bg-slate-900/40 border border-slate-800 rounded-2xl p-6 text-center shadow-2xl backdrop-blur-sm mx-auto">
           <div className="flex items-center justify-center gap-2 mb-2">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
-            <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Real-Time Data</span>
+            <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{REAL_TIME_BADGE}</span>
           </div>
           <p className="text-sm text-slate-300 transition-all duration-700 ease-in-out">
-            {REAL_TIME_MESSAGES[currentRealTimeMsg]}
+            {getRealTimeMessage(elapsed)}
           </p>
         </div>
       )}

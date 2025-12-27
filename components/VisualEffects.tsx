@@ -1,22 +1,22 @@
 import React from 'react';
-import { NarrativePhase } from '../types';
+import { Phase } from '../src/constants';
 import NoiseLayer from './NoiseLayer';
 
 interface VisualEffectsProps {
-  phase: NarrativePhase;
+  phase: Phase;
   intensity: number; // 0-1
 }
 
 const VisualEffects: React.FC<VisualEffectsProps> = ({ phase, intensity }) => {
   return (
     <>
-      {/* Наложение шума для фаз DISTORTION и TENSION */}
-      {(phase === NarrativePhase.DISTORTION || phase === NarrativePhase.TENSION) && (
+      {/* Наложение шума для фаз OFF и EXPLAIN */}
+      {(phase === "OFF" || phase === "EXPLAIN") && (
         <NoiseLayer intensity={intensity} opacity={0.5} />
       )}
 
-      {/* Эффект разрыва для фазы TENSION */}
-      {phase === NarrativePhase.TENSION && (
+      {/* Эффект разрыва для фазы EXPLAIN */}
+      {phase === "EXPLAIN" && (
         <div
           className="fixed inset-0 pointer-events-none"
           style={{
@@ -41,8 +41,8 @@ const VisualEffects: React.FC<VisualEffectsProps> = ({ phase, intensity }) => {
         />
       )}
 
-      {/* Glitch эффект для фаз DISTORTION и TENSION */}
-      {(phase === NarrativePhase.DISTORTION || phase === NarrativePhase.TENSION) && (
+      {/* Glitch эффект для фаз OFF и EXPLAIN */}
+      {(phase === "OFF" || phase === "EXPLAIN") && (
         <>
           <div
             className="fixed inset-0 pointer-events-none"

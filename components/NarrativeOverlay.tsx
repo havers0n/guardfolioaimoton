@@ -1,29 +1,38 @@
 import React, { useEffect, useState } from 'react';
-import { NarrativePhase } from '../types';
-import { NARRATIVE_TIMELINE } from '../constants';
+import { Phase, PHASES } from '../src/constants';
+import { getPhaseAt } from '../src/timeline';
 
 interface NarrativeOverlayProps {
-  phase: NarrativePhase;
+  phase: Phase;
   elapsed: number;
 }
 
 const NarrativeOverlay: React.FC<NarrativeOverlayProps> = ({ phase, elapsed }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const phaseInfo = NARRATIVE_TIMELINE.PHASES[phase];
+  const phaseInfo = getPhaseAt(elapsed);
 
   useEffect(() => {
-    const phaseStart = phaseInfo.start * 1000;
-    const phaseEnd = phaseInfo.end * 1000;
+    const currentPhaseData = PHASES.find(p => p.phase === phase);
+    if (!currentPhaseData) {
+      setIsVisible(false);
+      return;
+    }
+
+    const phaseStart = currentPhaseData.fromMs;
+    const phaseEnd = currentPhaseData.toMs;
     const phaseDuration = phaseEnd - phaseStart;
     const phaseElapsed = elapsed - phaseStart;
 
+    // Для фазы CLARITY скрываем текст раньше, чтобы освободить место для логотипа
+    const hideBeforeEnd = phase === "CLARITY" ? 2000 : 500; // За 2 секунды до конца для CLARITY, 500мс для остальных
+
     // Показываем текст с задержкой и держим его видимым
-    if (phaseElapsed >= 300 && phaseElapsed < phaseDuration - 500) {
+    if (phaseElapsed >= 300 && phaseElapsed < phaseDuration - hideBeforeEnd) {
       setIsVisible(true);
     } else {
       setIsVisible(false);
     }
-  }, [phase, elapsed, phaseInfo]);
+  }, [phase, elapsed]);
 
   if (!isVisible) return null;
 
@@ -45,7 +54,7 @@ const NarrativeOverlay: React.FC<NarrativeOverlayProps> = ({ phase, elapsed }) =
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          {phaseInfo.message}
+          {phaseInfo.phaseText}
         </h2>
       </div>
     </div>
