@@ -48,6 +48,7 @@ export class CanvasRenderer {
   private isReady = false;
   private initialized = false; // Флаг полной инициализации после await app.init()
   private initPromise: Promise<void> | null = null; // Promise для идемпотентности init()
+  private layersInitialized = false; // Флаг инициализации слоев (идемпотентность)
   private resizeHandler?: () => void;
 
   constructor(config: RendererConfig) {
@@ -144,23 +145,18 @@ export class CanvasRenderer {
   }
 
   private initLayers(): void {
+    // Идемпотентность: если слои уже инициализированы, ничего не делаем
+    if (this.layersInitialized) {
+      return;
+    }
+
     // Проверка: initLayers() может вызываться только после await app.init()
-    // В dev (StrictMode) лучше return вместо throw, чтобы не сыпать ошибками
     if (!this.initialized || !this.app) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Cannot init layers: app is not initialized. Skipping (StrictMode safe).');
-        return;
-      }
-      // В production всё равно throw для безопасности
       throw new Error('Cannot init layers: app is not initialized. Call initLayers() only after await app.init() completes.');
     }
 
     // Дополнительная проверка на наличие renderer и stage
     if (!this.app.renderer || !this.app.stage) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Cannot init layers: app.renderer or app.stage is not available. Skipping.');
-        return;
-      }
       throw new Error('Cannot init layers: app.renderer or app.stage is not available');
     }
 
@@ -198,6 +194,8 @@ export class CanvasRenderer {
     rootContainer.addChild(logoContainer);
     this.logoLayer = new LogoLayer(logoContainer, this.viewport);
     this.layers.push(this.logoLayer);
+
+    this.layersInitialized = true;
 
     console.log('Layers initialized:', {
       total: this.layers.length,
@@ -461,6 +459,7 @@ export class CanvasRenderer {
     this.mounted = false;
     this.isReady = false;
     this.initialized = false;
+    this.layersInitialized = false;
     this.initPromise = null; // Сбрасываем Promise для возможности повторной инициализации
   }
 }
