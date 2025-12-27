@@ -1,6 +1,6 @@
 # Нарративная анимация - Experience First Video
 
-Этот проект представляет собой 30-секундную анимацию-нарратив для рекламного видео приложения Guardfolio AI - анализатора рисков инвестиционного портфолио.
+Этот проект представляет собой 15-секундную анимацию-нарратив для рекламного видео приложения Guardfolio AI - анализатора рисков инвестиционного портфолио.
 
 ## Структура анимации
 
@@ -69,19 +69,20 @@ npm install
 npm run dev
 ```
 
-Анимация запускается автоматически при загрузке страницы и длится 30 секунд.
+Анимация запускается автоматически при загрузке страницы и длится 15 секунд (DURATION_MS в src/constants.ts).
 
 ## Настройка
 
 Таймлайн и сообщения можно изменить в `constants.ts`:
 
 ```typescript
-export const NARRATIVE_TIMELINE = {
-  TOTAL_DURATION: 30,
-  PHASES: {
-    [NarrativePhase.DISTORTION]: { start: 0, end: 10, message: "..." },
-    // ...
-  }
+export const TIMELINE = {
+  DURATION_MS: 15_000,
+  FADE_IN_MS: 200,
+  FADE_OUT_MS: 200,
+  HOOK: { fromMs: 0, toMs: 700 },
+  OFF: { fromMs: 700, toMs: 3_000 },
+  // ... см. src/constants.ts для полной структуры
 }
 ```
 
