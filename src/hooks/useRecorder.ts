@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { DURATION_MS } from '../src/constants';
+import { DURATION_MS } from '../constants';
 
 export interface RecorderConfig {
   canvas: HTMLCanvasElement | null;

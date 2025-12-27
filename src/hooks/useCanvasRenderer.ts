@@ -5,9 +5,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import { CanvasRenderer } from '../src/renderer/CanvasRenderer';
-import { TimelineEngine } from '../src/engine/timelineEngine';
-import { EventBus } from '../src/engine/eventBus';
+import { CanvasRenderer } from '../renderer/CanvasRenderer';
+import { TimelineEngine } from '../engine/timelineEngine';
+import { EventBus } from '../engine/eventBus';
 
 export function useCanvasRenderer(
   containerRef: RefObject<HTMLElement>,

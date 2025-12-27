@@ -1,4 +1,6 @@
 {
+  // NOTE: Runtime code should only import from src/ directory.
+  // Legacy imports are forbidden - legacy/ is for scripts only (render, screenshots).
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

@@ -4,10 +4,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { TimelineEngine } from '../src/engine/timelineEngine';
-import { TimeSource } from '../src/engine/timeSource';
-import { EventBus } from '../src/engine/eventBus';
-import { TimelineState } from '../src/engine/timelineSpec';
+import { TimelineEngine } from '../engine/timelineEngine';
+import { TimeSource } from '../engine/timeSource';
+import { EventBus } from '../engine/eventBus';
+import { TimelineState } from '../engine/timelineSpec';
 
 export function useTimelineEngine() {
   const engineRef = useRef<TimelineEngine | null>(null);
