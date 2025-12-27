@@ -17,6 +17,8 @@ import { Phase, MacroPhase } from '../constants';
 import { TimelineEngine } from '../engine/timelineEngine';
 import { EventBus } from '../engine/eventBus';
 import { QualityManager, QualityPreset } from './quality';
+import { Element } from '../elements/Element';
+import { createElements, mountElements, DEFAULT_ELEMENTS, ElementConfig } from '../elements/registry';
 
 export interface RendererConfig {
   container: HTMLElement;
@@ -37,6 +39,9 @@ export class CanvasRenderer {
   private overlayLayer: OverlayLayer | null = null;
   private logoLayer: LogoLayer | null = null;
   private uiLayer: UILayer | null = null;
+  // Элементы (новая система)
+  private elements: Array<{ element: Element; container: PIXI.Container }> = [];
+  private useElements = false; // Флаг использования элементов вместо слоев
   private rafId: number | null = null;
   private isRunning = false;
   private lastTime = 0;
@@ -142,6 +147,50 @@ export class CanvasRenderer {
     })();
 
     return this.initPromise;
+  }
+
+  /**
+   * Инициализирует элементы через registry.
+   * Используется вместо слоев для модульной архитектуры.
+   */
+  initElements(elementConfigs?: ElementConfig[]): void {
+    if (this.layersInitialized) {
+      console.warn('Layers already initialized, skipping elements initialization');
+      return;
+    }
+
+    if (!this.initialized || !this.app) {
+      throw new Error('Cannot init elements: app is not initialized');
+    }
+
+    if (!this.app.renderer || !this.app.stage) {
+      throw new Error('Cannot init elements: app.renderer or app.stage is not available');
+    }
+
+    // Создаем корневой контейнер для всех элементов
+    const rootContainer = new Container();
+    this.app.stage.addChild(rootContainer);
+
+    // Используем переданную конфигурацию или дефолтную
+    const configs = elementConfigs || DEFAULT_ELEMENTS;
+    const elementsWithZIndex = createElements(configs);
+
+    // Монтируем элементы
+    const elementContainers = mountElements(elementsWithZIndex, rootContainer, this.viewport);
+
+    // Сохраняем элементы и их контейнеры
+    this.elements = elementsWithZIndex.map(({ element }) => ({
+      element,
+      container: elementContainers.get(element)!,
+    }));
+
+    this.useElements = true;
+    this.layersInitialized = true;
+
+    console.log('Elements initialized:', {
+      total: this.elements.length,
+      configs: configs.map(c => c.type),
+    });
   }
 
   private initLayers(): void {
@@ -341,14 +390,25 @@ export class CanvasRenderer {
     }
 
     if (this.currentState) {
-      // Сначала обновляем слои, которые предоставляют данные
-      this.layers.forEach((layer, index) => {
-        try {
-          layer.update(dt, this.currentState!);
-        } catch (e) {
-          console.warn(`Error updating layer ${index}:`, e);
-        }
-      });
+      if (this.useElements) {
+        // Обновляем элементы (новая система)
+        this.elements.forEach(({ element }, index) => {
+          try {
+            element.update(dt, this.currentState!);
+          } catch (e) {
+            console.warn(`Error updating element ${index}:`, e);
+          }
+        });
+      } else {
+        // Обновляем слои (старая система)
+        this.layers.forEach((layer, index) => {
+          try {
+            layer.update(dt, this.currentState!);
+          } catch (e) {
+            console.warn(`Error updating layer ${index}:`, e);
+          }
+        });
+      }
 
       // Логируем состояние раз в секунду для отладки
       if (Math.floor(this.currentState.elapsed / 1000) !== Math.floor((this.currentState.elapsed - dt) / 1000)) {
@@ -356,7 +416,8 @@ export class CanvasRenderer {
           elapsed: Math.floor(this.currentState.elapsed),
           phase: this.currentState.phase,
           chartOpacity: this.currentState.chartParams.opacity.toFixed(2),
-          layersUpdated: this.layers.length,
+          useElements: this.useElements,
+          itemsUpdated: this.useElements ? this.elements.length : this.layers.length,
         });
       }
 
@@ -430,15 +491,26 @@ export class CanvasRenderer {
       this.resizeHandler = undefined;
     }
 
-    // Уничтожаем слои
-    this.layers.forEach(layer => {
-      try {
-        layer.destroy();
-      } catch (e) {
-        console.warn('Error destroying layer:', e);
-      }
-    });
-    this.layers = [];
+    // Уничтожаем элементы или слои
+    if (this.useElements) {
+      this.elements.forEach(({ element }) => {
+        try {
+          element.destroy();
+        } catch (e) {
+          console.warn('Error destroying element:', e);
+        }
+      });
+      this.elements = [];
+    } else {
+      this.layers.forEach(layer => {
+        try {
+          layer.destroy();
+        } catch (e) {
+          console.warn('Error destroying layer:', e);
+        }
+      });
+      this.layers = [];
+    }
 
     // Очищаем ссылки на слои
     this.backgroundLayer = null;
@@ -446,6 +518,7 @@ export class CanvasRenderer {
     this.overlayLayer = null;
     this.logoLayer = null;
     this.uiLayer = null;
+    this.useElements = false;
 
     // Уничтожаем Application
     if (this.app) {
