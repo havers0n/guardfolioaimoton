@@ -68,32 +68,32 @@ export class ChartLayer extends BaseLayer {
     // Очищаем график
     this.chartGraphics.clear();
 
-    // Рисуем градиентный фон (fill)
-    this.chartGraphics.beginFill(0x3b82f6, 0.3 * opacity);
+    // Рисуем градиентный фон (fill) - новый API v8
     const path = this.generatePath(this.chartPoints, chartWidth, chartHeight);
-    this.chartGraphics.drawPolygon([
+    const polygonPath = [
       ...path,
       { x: chartWidth, y: chartHeight },
       { x: 0, y: chartHeight },
-    ]);
-    this.chartGraphics.endFill();
+    ];
+    this.chartGraphics.poly(polygonPath);
+    this.chartGraphics.fill({ color: 0x3b82f6, alpha: 0.3 * opacity });
 
-    // Рисуем сетку
-    this.chartGraphics.lineStyle(0.5, 0x3b82f6, 0.15 * opacity);
+    // Рисуем сетку - новый API v8
     for (let i = 1; i <= 5; i++) {
       const y = (i * chartHeight) / 6;
       this.chartGraphics.moveTo(0, y);
       this.chartGraphics.lineTo(chartWidth, y);
     }
+    this.chartGraphics.stroke({ width: 0.5, color: 0x3b82f6, alpha: 0.15 * opacity });
 
-    // Рисуем линию графика
-    this.chartGraphics.lineStyle(2, 0x3b82f6, 0.8 * opacity);
+    // Рисуем линию графика - новый API v8
     const linePath = this.generatePath(this.chartPoints, chartWidth, chartHeight);
-    this.chartGraphics.drawPolygon(linePath);
+    this.chartGraphics.poly(linePath);
+    this.chartGraphics.stroke({ width: 2, color: 0x3b82f6, alpha: 0.8 * opacity });
 
     // Применяем blur через фильтр
     if (blur > 0) {
-      this.chartGraphics.filters = [new PIXI.BlurFilter(blur)];
+      this.chartGraphics.filters = [new PIXI.BlurFilter({ blur })];
     } else {
       this.chartGraphics.filters = [];
     }
@@ -149,9 +149,8 @@ export class ChartLayer extends BaseLayer {
 
       const riskPoint = this.riskPoints[mapIdx];
       riskPoint.clear();
-      riskPoint.beginFill(0xef4444, riskOpacity);
-      riskPoint.drawCircle(0, 0, 4 * pulseScale);
-      riskPoint.endFill();
+      riskPoint.circle(0, 0, 4 * pulseScale);
+      riskPoint.fill({ color: 0xef4444, alpha: riskOpacity });
 
       riskPoint.x = centerX - chartWidth / 2 + x;
       riskPoint.y = centerY - chartHeight / 2 + y;

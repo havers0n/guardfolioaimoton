@@ -40,11 +40,10 @@ export class BackgroundLayer extends BaseLayer {
     if (this.blob1) {
       this.blob1.clear();
       const radius = 400; // 800px / 2
-      this.blob1.beginFill(0x1e3a8a, 0.1); // blue-900/10
-      this.blob1.drawCircle(0, 0, radius);
-      this.blob1.endFill();
+      this.blob1.circle(0, 0, radius);
+      this.blob1.fill({ color: 0x1e3a8a, alpha: 0.1 }); // blue-900/10
       this.blob1.filters = [
-        new PIXI.BlurFilter(120 * (width / 1920)) // Масштабируем blur относительно ширины
+        new PIXI.BlurFilter({ blur: 120 * (width / 1920) }) // Масштабируем blur относительно ширины
       ];
       this.blob1.blendMode = 'screen';
     }
@@ -53,11 +52,10 @@ export class BackgroundLayer extends BaseLayer {
     if (this.blob2) {
       this.blob2.clear();
       const radius = 300; // 600px / 2
-      this.blob2.beginFill(0x312e81, 0.05); // indigo-900/5
-      this.blob2.drawCircle(0, 0, radius);
-      this.blob2.endFill();
+      this.blob2.circle(0, 0, radius);
+      this.blob2.fill({ color: 0x312e81, alpha: 0.05 }); // indigo-900/5
       this.blob2.filters = [
-        new PIXI.BlurFilter(100 * (width / 1920))
+        new PIXI.BlurFilter({ blur: 100 * (width / 1920) })
       ];
       this.blob2.blendMode = 'screen';
     }

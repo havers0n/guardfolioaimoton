@@ -18,7 +18,10 @@ import { TimelineEngine } from '../engine/timelineEngine';
 import { EventBus } from '../engine/eventBus';
 import { QualityManager, QualityPreset } from './quality';
 import { Element } from '../elements/Element';
-import { createElements, mountElements, DEFAULT_ELEMENTS, ElementConfig } from '../elements/registry';
+import { DEFAULT_ELEMENTS, ElementConfig } from '../elements/registry';
+import { createElements, mountElements } from '../elements/elementFactory';
+import { computeLayout, type Layout } from './layout/layout';
+import { getContainerContext, setContainerContext, updateContainerLayout } from './containerContext';
 
 export interface RendererConfig {
   container: HTMLElement;
@@ -55,10 +58,12 @@ export class CanvasRenderer {
   private initPromise: Promise<void> | null = null; // Promise для идемпотентности init()
   private layersInitialized = false; // Флаг инициализации слоев (идемпотентность)
   private resizeHandler?: () => void;
+  private cachedLayout: Layout | null = null; // Кэш layout
 
   constructor(config: RendererConfig) {
-    const width = config.width || config.container.clientWidth || 1920;
-    const height = config.height || config.container.clientHeight || 1080;
+    // Используем фиксированный размер 16:9 для viewport (базовое разрешение)
+    const width = config.width || 1920;
+    const height = config.height || 1080;
     
     this.qualityManager = new QualityManager(config.quality || 'high');
     const qualityConfig = this.qualityManager.getConfig();
@@ -87,8 +92,9 @@ export class CanvasRenderer {
 
     // Создаем Promise для идемпотентности (StrictMode safe)
     this.initPromise = (async () => {
-      const width = this.viewport.getWidth();
-      const height = this.viewport.getHeight();
+      // Используем фиксированный размер 16:9 для canvas
+      const canvasWidth = 1920;
+      const canvasHeight = 1080;
       const qualityConfig = this.qualityManager.getConfig();
 
       try {
@@ -96,10 +102,10 @@ export class CanvasRenderer {
         const app = new Application();
         this.app = app;
 
-        // 2) Обязательно await init()
+        // 2) Обязательно await init() с фиксированным размером 16:9
         await app.init({
-          width,
-          height,
+          width: canvasWidth,
+          height: canvasHeight,
           backgroundColor: config.backgroundColor ?? 0x0b1120, // #0b1120
           antialias: config.antialias ?? qualityConfig.antialias,
           resolution: config.resolution ?? qualityConfig.resolution,
@@ -111,16 +117,28 @@ export class CanvasRenderer {
           throw new Error('Pixi app.canvas is undefined after init()');
         }
 
-        // 4) Устанавливаем флаг инициализации ПЕРЕД добавлением в DOM
+        // 4) Устанавливаем стили для центрирования canvas (16:9 формат)
+        const canvas = app.canvas;
+        canvas.style.display = 'block';
+        canvas.style.margin = '0 auto';
+        canvas.style.maxWidth = '100%';
+        canvas.style.maxHeight = '100%';
+        canvas.style.objectFit = 'contain';
+        
+        // Обновляем размеры canvas для центрирования в контейнере
+        this.updateCanvasStyles(canvas, config.container);
+
+        // 5) Устанавливаем флаг инициализации ПЕРЕД добавлением в DOM
         this.initialized = true;
 
-        // 5) Добавляем canvas в DOM
-        config.container.appendChild(app.canvas);
+        // 6) Добавляем canvas в DOM
+        config.container.appendChild(canvas);
+        console.log('[CanvasRenderer] CanvasRenderer initialized and mounted to container');
 
-        // 6) Инициализируем слои (теперь это безопасно)
+        // 7) Инициализируем слои (теперь это безопасно)
         this.initLayers();
 
-        // 7) Обработка изменения размера
+        // 8) Обработка изменения размера
         this.resizeHandler = () => this.handleResize();
         window.addEventListener('resize', this.resizeHandler);
 
@@ -150,6 +168,25 @@ export class CanvasRenderer {
   }
 
   /**
+   * Вычисляет и кэширует layout.
+   */
+  private computeLayout(): Layout {
+    if (!this.cachedLayout || 
+        this.cachedLayout.width !== this.viewport.getWidth() ||
+        this.cachedLayout.height !== this.viewport.getHeight()) {
+      this.cachedLayout = computeLayout(this.viewport, 'default', 'fit');
+    }
+    return this.cachedLayout;
+  }
+
+  /**
+   * Получает текущий layout (кэшированный).
+   */
+  getLayout(): Layout {
+    return this.computeLayout();
+  }
+
+  /**
    * Инициализирует элементы через registry.
    * Используется вместо слоев для модульной архитектуры.
    */
@@ -167,6 +204,9 @@ export class CanvasRenderer {
       throw new Error('Cannot init elements: app.renderer or app.stage is not available');
     }
 
+    // Вычисляем layout
+    const layout = this.computeLayout();
+
     // Создаем корневой контейнер для всех элементов
     const rootContainer = new Container();
     this.app.stage.addChild(rootContainer);
@@ -175,8 +215,8 @@ export class CanvasRenderer {
     const configs = elementConfigs || DEFAULT_ELEMENTS;
     const elementsWithZIndex = createElements(configs);
 
-    // Монтируем элементы
-    const elementContainers = mountElements(elementsWithZIndex, rootContainer, this.viewport);
+    // Монтируем элементы с layout в контексте
+    const elementContainers = mountElements(elementsWithZIndex, rootContainer, this.viewport, layout);
 
     // Сохраняем элементы и их контейнеры
     this.elements = elementsWithZIndex.map(({ element }) => ({
@@ -190,6 +230,11 @@ export class CanvasRenderer {
     console.log('Elements initialized:', {
       total: this.elements.length,
       configs: configs.map(c => c.type),
+      layout: {
+        width: layout.width,
+        height: layout.height,
+        safe: layout.safe,
+      },
     });
   }
 
@@ -391,9 +436,24 @@ export class CanvasRenderer {
 
     if (this.currentState) {
       if (this.useElements) {
-        // Обновляем элементы (новая система)
-        this.elements.forEach(({ element }, index) => {
+        // Обновляем layout при изменении viewport
+        const layout = this.computeLayout();
+        
+        // Обновляем элементы (новая система) с актуальным layout
+        this.elements.forEach(({ element, container }, index) => {
           try {
+            // Обновляем layout в контексте элемента
+            const existingContext = getContainerContext(container);
+            if (!existingContext) {
+              setContainerContext(container, {
+                container,
+                viewport: this.viewport,
+                layout,
+              });
+            } else {
+              updateContainerLayout(container, layout);
+            }
+            
             element.update(dt, this.currentState!);
           } catch (e) {
             console.warn(`Error updating element ${index}:`, e);
@@ -432,16 +492,59 @@ export class CanvasRenderer {
   };
 
   /**
+   * Обновляет стили canvas для центрирования в контейнере (16:9 формат).
+   * Контейнер использует flexbox (items-center justify-center), поэтому используем margin: auto.
+   */
+  private updateCanvasStyles(canvas: HTMLCanvasElement, container: HTMLElement): void {
+    const targetAspectRatio = 16 / 9;
+    const containerWidth = container.clientWidth || window.innerWidth;
+    const containerHeight = container.clientHeight || window.innerHeight;
+    const containerAspectRatio = containerWidth / containerHeight;
+    
+    // Сбрасываем предыдущие стили
+    canvas.style.width = '';
+    canvas.style.height = '';
+    canvas.style.margin = '';
+    
+    if (containerAspectRatio > targetAspectRatio) {
+      // Контейнер шире, чем 16:9 - центрируем по вертикали (canvas занимает всю высоту)
+      const canvasHeight = containerHeight;
+      const canvasWidth = canvasHeight * targetAspectRatio;
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+      canvas.style.margin = '0 auto';
+    } else {
+      // Контейнер уже или равен 16:9 - центрируем по горизонтали (canvas занимает всю ширину)
+      const canvasWidth = containerWidth;
+      const canvasHeight = canvasWidth / targetAspectRatio;
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+      canvas.style.margin = '0 auto';
+    }
+  }
+
+  /**
    * Обрабатывает изменение размера окна.
    */
   private handleResize(): void {
-    if (!this.app || !this.mounted || !this.app.renderer) return;
+    if (!this.app || !this.mounted || !this.app.renderer || !this.app.canvas) return;
 
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const container = this.app.canvas.parentElement;
+    if (!container) return;
 
-    this.viewport.resize(width, height);
-    this.app.renderer.resize(width, height);
+    // Viewport использует фиксированный размер 1920x1080 (16:9)
+    // Canvas масштабируется через CSS для центрирования
+    const viewportWidth = 1920;
+    const viewportHeight = 1080;
+    
+    this.viewport.resize(viewportWidth, viewportHeight);
+    this.app.renderer.resize(viewportWidth, viewportHeight);
+    
+    // Обновляем стили canvas для центрирования
+    this.updateCanvasStyles(this.app.canvas, container);
+    
+    // Сбрасываем кэш layout для пересчёта
+    this.cachedLayout = null;
   }
 
   /**
@@ -470,18 +573,80 @@ export class CanvasRenderer {
   }
 
   /**
+   * Получает список элементов для inspector.
+   */
+  getElements(): Array<{ element: Element; container: PIXI.Container; type: string }> {
+    if (!this.useElements) {
+      return [];
+    }
+    // Определяем тип элемента по его классу
+    return this.elements.map(({ element, container }) => {
+      const type = element.constructor.name.replace('Element', '').toLowerCase();
+      return { element, container, type };
+    });
+  }
+
+  /**
+   * Устанавливает видимость элемента по индексу.
+   */
+  setElementVisible(index: number, visible: boolean): void {
+    if (!this.useElements || index < 0 || index >= this.elements.length) {
+      return;
+    }
+    const { container } = this.elements[index];
+    container.visible = visible;
+  }
+
+  /**
+   * Получает видимость элемента по индексу.
+   */
+  getElementVisible(index: number): boolean {
+    if (!this.useElements || index < 0 || index >= this.elements.length) {
+      return false;
+    }
+    return this.elements[index].container.visible;
+  }
+
+  /**
+   * Получает bounding box элемента по индексу.
+   */
+  getElementBounds(index: number): { x: number; y: number; width: number; height: number } | null {
+    if (!this.useElements || index < 0 || index >= this.elements.length) {
+      return null;
+    }
+    const { container } = this.elements[index];
+    const bounds = container.getBounds();
+    return {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+    };
+  }
+
+  /**
+   * Получает viewport для inspector.
+   */
+  getViewport(): Viewport {
+    return this.viewport;
+  }
+
+  /**
+   * Получает PixiJS Application для inspector (для отрисовки debug overlay).
+   */
+  getApplication(): Application | undefined {
+    return this.app;
+  }
+
+  /**
    * Очищает все ресурсы.
    * Идемпотентный: безопасен при двойном вызове и частично созданном состоянии.
    * 
    * ВНИМАНИЕ: В dev режиме destroy пропускается для защиты от StrictMode.
    */
   destroy(): void {
-    // Защита от destroy в dev (StrictMode)
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('[CanvasRenderer] Destroy skipped in dev mode (StrictMode protection)');
-      return;
-    }
-
+    console.log('[CanvasRenderer] Destroy called');
+    
     // Останавливаем render loop
     this.stop();
     
@@ -495,6 +660,7 @@ export class CanvasRenderer {
     if (this.useElements) {
       this.elements.forEach(({ element }) => {
         try {
+          element.dispose(); // Освобождаем ресурсы перед уничтожением
           element.destroy();
         } catch (e) {
           console.warn('Error destroying element:', e);
@@ -519,6 +685,20 @@ export class CanvasRenderer {
     this.logoLayer = null;
     this.uiLayer = null;
     this.useElements = false;
+
+    // Удаляем canvas из DOM перед уничтожением Application
+    if (this.app?.canvas) {
+      const canvas = this.app.canvas;
+      const parent = canvas.parentElement;
+      if (parent) {
+        try {
+          parent.removeChild(canvas);
+          console.log('[CanvasRenderer] Canvas removed from DOM');
+        } catch (e) {
+          console.warn('[CanvasRenderer] Error removing canvas from DOM:', e);
+        }
+      }
+    }
 
     // Уничтожаем Application
     if (this.app) {

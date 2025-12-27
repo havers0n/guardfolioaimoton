@@ -55,7 +55,8 @@ export class UILayer extends BaseLayer {
       fontWeight: 'bold',
       align: 'center',
     });
-    this.headerText.anchor.set(0.5);
+    this.headerText.anchor.x = 0.5;
+    this.headerText.anchor.y = 0.5;
     this.headerText.y = -120;
     this.headerText.alpha = 0;
     this.uiContainer.addChild(this.headerText);
@@ -68,7 +69,8 @@ export class UILayer extends BaseLayer {
       wordWrap: true,
       wordWrapWidth: 400,
     });
-    this.subtitleText.anchor.set(0.5);
+    this.subtitleText.anchor.x = 0.5;
+    this.subtitleText.anchor.y = 0.5;
     this.subtitleText.y = -90;
     this.subtitleText.alpha = 0;
     this.uiContainer.addChild(this.subtitleText);
@@ -78,16 +80,14 @@ export class UILayer extends BaseLayer {
     const progressBarHeight = 6;
 
     this.progressBarBg = new PIXI.Graphics();
-    this.progressBarBg.beginFill(0x1e293b, 0.8); // slate-800
-    this.progressBarBg.drawRoundedRect(-progressBarWidth / 2, -60, progressBarWidth, progressBarHeight, 3);
-    this.progressBarBg.endFill();
+    this.progressBarBg.roundRect(-progressBarWidth / 2, -60, progressBarWidth, progressBarHeight, 3);
+    this.progressBarBg.fill({ color: 0x1e293b, alpha: 0.8 }); // slate-800
     this.progressBarBg.alpha = 0;
     this.uiContainer.addChild(this.progressBarBg);
 
     this.progressBar = new PIXI.Graphics();
-    this.progressBar.beginFill(0x3b82f6); // blue-500
-    this.progressBar.drawRoundedRect(-progressBarWidth / 2, -60, 0, progressBarHeight, 3);
-    this.progressBar.endFill();
+    this.progressBar.roundRect(-progressBarWidth / 2, -60, 0, progressBarHeight, 3);
+    this.progressBar.fill({ color: 0x3b82f6 }); // blue-500
     this.progressBar.alpha = 0;
     this.uiContainer.addChild(this.progressBar);
 
@@ -97,7 +97,8 @@ export class UILayer extends BaseLayer {
       fill: 0x94a3b8,
       fontWeight: '600',
     });
-    this.progressText.anchor.set(1, 0.5);
+    this.progressText.anchor.x = 1;
+    this.progressText.anchor.y = 0.5;
     this.progressText.x = progressBarWidth / 2 - 10;
     this.progressText.y = -57;
     this.progressText.alpha = 0;
@@ -114,7 +115,8 @@ export class UILayer extends BaseLayer {
         fill: 0x94a3b8,
         align: 'left',
       });
-      taskText.anchor.set(0, 0.5);
+      taskText.anchor.x = 0;
+      taskText.anchor.y = 0.5;
       taskText.x = -180;
       taskContainer.addChild(taskText);
 
@@ -200,9 +202,8 @@ export class UILayer extends BaseLayer {
       const progressBarWidth = 400;
       const progress = state.taskProgress / 100;
       this.progressBar.clear();
-      this.progressBar.beginFill(0x3b82f6);
-      this.progressBar.drawRoundedRect(-progressBarWidth / 2, -60, progressBarWidth * progress, 6, 3);
-      this.progressBar.endFill();
+      this.progressBar.roundRect(-progressBarWidth / 2, -60, progressBarWidth * progress, 6, 3);
+      this.progressBar.fill({ color: 0x3b82f6 });
 
       this.progressText.text = `${Math.round(state.taskProgress)}%`;
     }

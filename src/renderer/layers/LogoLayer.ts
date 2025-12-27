@@ -39,7 +39,8 @@ export class LogoLayer extends BaseLayer {
       letterSpacing: 0.02,
       align: 'center',
     });
-    this.brandText.anchor.set(0.5);
+    this.brandText.anchor.x = 0.5;
+    this.brandText.anchor.y = 0.5;
     this.brandText.y = -40;
     this.containerGroup.addChild(this.brandText);
 
@@ -52,25 +53,24 @@ export class LogoLayer extends BaseLayer {
       letterSpacing: 0.02,
       align: 'center',
     });
-    this.taglineText.anchor.set(0.5);
+    this.taglineText.anchor.x = 0.5;
+    this.taglineText.anchor.y = 0.5;
     this.taglineText.y = 20;
     this.taglineText.alpha = 0;
     this.containerGroup.addChild(this.taglineText);
 
     // Decorative blobs
     this.blob1 = new PIXI.Graphics();
-    this.blob1.beginFill(0x3b82f6, 0.1);
-    this.blob1.drawCircle(0, 0, 192); // 384px / 2
-    this.blob1.endFill();
-    this.blob1.filters = [new PIXI.BlurFilter(48)]; // blur-3xl
+    this.blob1.circle(0, 0, 192); // 384px / 2
+    this.blob1.fill({ color: 0x3b82f6, alpha: 0.1 });
+    this.blob1.filters = [new PIXI.BlurFilter({ blur: 48 })]; // blur-3xl
     this.blob1.alpha = 0;
     this.containerGroup.addChild(this.blob1);
 
     this.blob2 = new PIXI.Graphics();
-    this.blob2.beginFill(0x8b5cf6, 0.1); // purple-500/10
-    this.blob2.drawCircle(0, 0, 128); // 256px / 2
-    this.blob2.endFill();
-    this.blob2.filters = [new PIXI.BlurFilter(32)]; // blur-2xl
+    this.blob2.circle(0, 0, 128); // 256px / 2
+    this.blob2.fill({ color: 0x8b5cf6, alpha: 0.1 }); // purple-500/10
+    this.blob2.filters = [new PIXI.BlurFilter({ blur: 32 })]; // blur-2xl
     this.blob2.alpha = 0;
     this.containerGroup.addChild(this.blob2);
   }

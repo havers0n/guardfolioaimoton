@@ -1,54 +1,47 @@
 /**
- * rendererSingleton - управление жизненным циклом CanvasRenderer вне React.
- * Renderer живёт своей жизнью, не зависит от React lifecycle.
+ * rendererSingleton - DEPRECATED.
+ * 
+ * @deprecated Этот модуль удалён в пользу архитектуры вариант C.
+ * Используйте PlaybackHost, GalleryHost, ExportHost - каждый создаёт и владеет своим renderer.
+ * 
+ * Этот файл оставлен только для обратной совместимости с legacy-кодом.
+ * Не используйте в новом коде!
  */
 
-import { CanvasRenderer, RendererConfig } from './CanvasRenderer';
-
-let instance: CanvasRenderer | null = null;
-let initPromise: Promise<CanvasRenderer> | null = null;
+import { CanvasRenderer, type RendererConfig } from './CanvasRenderer';
 
 /**
- * Получает или создаёт singleton renderer.
- * Идемпотентный: повторные вызовы возвращают тот же экземпляр.
+ * @deprecated Используйте новую архитектуру вариант C
  */
 export async function getRenderer(config: RendererConfig): Promise<CanvasRenderer> {
-  // Если уже существует, возвращаем
-  if (instance) {
-    return instance;
-  }
-
-  // Если идёт инициализация, ждём
-  if (initPromise) {
-    return initPromise;
-  }
-
-  // Создаём новый renderer
-  initPromise = (async () => {
-    instance = new CanvasRenderer(config);
-    await instance.init(config);
-    instance.start();
-    return instance;
-  })();
-
-  return initPromise;
+  console.error(
+    '[DEPRECATED] rendererSingleton.getRenderer() используется в legacy-коде.\n' +
+    'Используйте новую архитектуру вариант C: PlaybackHost, GalleryHost, ExportHost.\n' +
+    'Каждый Host создаёт и владеет своим renderer.'
+  );
+  throw new Error(
+    'rendererSingleton is deprecated. Use PlaybackHost, GalleryHost, or ExportHost instead.'
+  );
 }
 
 /**
- * Получает текущий renderer без создания нового.
+ * @deprecated Используйте новую архитектуру вариант C
  */
 export function getRendererSync(): CanvasRenderer | null {
-  return instance;
+  console.error(
+    '[DEPRECATED] rendererSingleton.getRendererSync() используется в legacy-коде.\n' +
+    'Используйте новую архитектуру вариант C: PlaybackHost, GalleryHost, ExportHost.'
+  );
+  return null;
 }
 
 /**
- * Уничтожает renderer (только при закрытии приложения).
+ * @deprecated Используйте новую архитектуру вариант C
  */
 export function destroyRenderer(): void {
-  if (instance) {
-    instance.destroy();
-    instance = null;
-    initPromise = null;
-  }
+  console.warn(
+    '[DEPRECATED] rendererSingleton.destroyRenderer() больше не требуется.\n' +
+    'Каждый Host управляет своим renderer и уничтожает его при размонтировании.'
+  );
 }
 

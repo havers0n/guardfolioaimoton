@@ -4,7 +4,8 @@
  */
 
 import { BaseLayer } from './BaseLayer';
-import { TimelineState, TIMELINE_SPEC } from '../../engine/timelineSpec';
+import { TimelineState } from '../../engine/timelineSpec';
+import { getNarrativeWindow } from '../../timeline';
 import * as PIXI from 'pixi.js';
 import { RNG } from '../../engine/rng';
 
@@ -36,7 +37,8 @@ export class OverlayLayer extends BaseLayer {
       wordWrapWidth: 800,
       letterSpacing: -0.02,
     });
-    this.narrativeText.anchor.set(0.5);
+    this.narrativeText.anchor.x = 0.5;
+    this.narrativeText.anchor.y = 0.5;
     this.narrativeText.x = width / 2;
     this.narrativeText.y = height * 0.85; // Lower third
     this.narrativeText.alpha = 0;
@@ -134,8 +136,7 @@ export class OverlayLayer extends BaseLayer {
         this.narrativeText.text = state.narrativeText;
         
         // Fade in/out logic
-        const window = state.narrativeText ? 
-          TIMELINE_SPEC.narrativeWindows.find(w => w.text === state.narrativeText) : null;
+        const window = getNarrativeWindow(state.elapsed);
         
         if (window) {
           const FADE_MS = 300;
