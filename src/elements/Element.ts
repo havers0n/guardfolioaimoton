@@ -6,13 +6,15 @@
 
 import { TimelineState } from '../engine/timelineSpec';
 import * as PIXI from 'pixi.js';
+import type { Layout } from '../renderer/layout/layout';
 
 /**
- * Контекст для элемента - предоставляет доступ к viewport и контейнеру.
+ * Контекст для элемента - предоставляет доступ к viewport, контейнеру и layout.
  */
 export interface ElementContext {
   container: PIXI.Container;
   viewport: { getWidth(): number; getHeight(): number };
+  layout: Layout;
 }
 
 /**
@@ -34,7 +36,15 @@ export interface Element {
   update(dt: number, state: TimelineState): void;
 
   /**
+   * Освобождает ресурсы элемента перед уничтожением.
+   * Вызывается перед destroy() для корректной очистки.
+   * Может быть вызван несколько раз (идемпотентный).
+   */
+  dispose(): void;
+
+  /**
    * Уничтожает элемент и освобождает ресурсы.
+   * Вызывается при полном уничтожении элемента.
    */
   destroy(): void;
 }

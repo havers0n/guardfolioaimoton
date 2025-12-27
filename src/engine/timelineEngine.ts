@@ -6,25 +6,33 @@
  * - Не зависит от React
  * - Использует performance.now() через TimeSource
  * - Эмитит события через EventBus
+ * - Использует compiled spec для вычисления состояния
  */
 
+import type { ITimeSource } from './ITimeSource';
 import { TimeSource } from './timeSource';
 import { EventBus, TimelineEvent } from './eventBus';
-import { TimelineState, ChartRole, ChartRoleParams, EnergyBeamEvent, TIMELINE_SPEC } from './timelineSpec';
+import { TimelineState, ChartRole, ChartRoleParams, EnergyBeamEvent } from './timelineSpec';
 import { Phase } from '../constants';
-import { getPhaseAt, getMacroPhaseAt, getChartRoleAt, isNarrativeInterrupt, getDynamicHeader, getEnergyBeamEvent, getVisibleTasksCount, getTaskImpactIndex, getTaskProgress, getUIBreathing, clamp01, lerp } from '../timeline';
+import { getPhaseAt, getMacroPhaseAt, getChartRoleAt, isNarrativeInterrupt, getDynamicHeader, getEnergyBeamEvent, getVisibleTasksCount, getTaskImpactIndex, getTaskProgress, getUIBreathing, clamp01, setCompiledSpec, getNarrativeWindow } from '../timeline';
+import type { CompiledSpec } from './spec';
 
 export class TimelineEngine {
-  private timeSource: TimeSource;
+  private timeSource: ITimeSource;
   private eventBus: EventBus;
+  private compiledSpec: CompiledSpec;
   private lastPhase: Phase | null = null;
   private lastState: TimelineState | null = null;
   private rafId: number | null = null;
   private isRunning = false;
 
-  constructor(timeSource: TimeSource, eventBus: EventBus) {
+  constructor(timeSource: ITimeSource, eventBus: EventBus, compiledSpec: CompiledSpec) {
     this.timeSource = timeSource;
     this.eventBus = eventBus;
+    this.compiledSpec = compiledSpec;
+    
+    // Устанавливаем spec в timeline.ts для использования в функциях
+    setCompiledSpec(compiledSpec);
   }
 
   /**
@@ -55,15 +63,15 @@ export class TimelineEngine {
    * Используется для seek mode и тестирования.
    */
   getStateAt(elapsed: number): TimelineState {
-    const phase = getPhaseAt(elapsed);
-    const macroPhase = getMacroPhaseAt(elapsed);
+    const phase = getPhaseAt(elapsed) as Phase;
+    const macroPhase = getMacroPhaseAt(elapsed) as any;
     
     // Phase intensity
-    const phaseTiming = TIMELINE_SPEC.phases[phase];
+    const phaseLookup = this.compiledSpec.phases.find(p => p.phase === phase);
     let intensity = 0;
-    if (phaseTiming) {
-      const duration = phaseTiming.toMs - phaseTiming.fromMs;
-      const phaseElapsed = elapsed - phaseTiming.fromMs;
+    if (phaseLookup) {
+      const duration = phaseLookup.toMs - phaseLookup.fromMs;
+      const phaseElapsed = elapsed - phaseLookup.fromMs;
       intensity = Math.max(0, Math.min(1, phaseElapsed / duration));
     }
 
@@ -76,19 +84,23 @@ export class TimelineEngine {
     const isInterrupt = isNarrativeInterrupt(elapsed);
     const uiBreathing = getUIBreathing(elapsed);
     
-    // Brand Progress (22.0s - 25.0s growth)
-    const brandStart = 22_000;
-    const brandDuration = 3_000;
-    const brandProgress = elapsed > brandStart 
-      ? clamp01((elapsed - brandStart) / brandDuration) 
-      : 0;
+    // Brand Progress
+    let brandProgress = 0;
+    if (this.compiledSpec.brand) {
+      const { start, duration } = this.compiledSpec.brand;
+      brandProgress = elapsed > start 
+        ? clamp01((elapsed - start) / duration) 
+        : 0;
+    }
 
-    // Implosion Logic (22.0s - 23.0s)
-    const implosionStart = 22_000;
-    const implosionDuration = 1_000;
-    const implosionProgress = elapsed > implosionStart 
-      ? clamp01((elapsed - implosionStart) / implosionDuration) 
-      : 0;
+    // Implosion Logic
+    let implosionProgress = 0;
+    if (this.compiledSpec.implosion) {
+      const { start, duration } = this.compiledSpec.implosion;
+      implosionProgress = elapsed > start 
+        ? clamp01((elapsed - start) / duration) 
+        : 0;
+    }
     
     const implosionScale = 1 - implosionProgress;
     const implosionOpacity = 1 - implosionProgress;
@@ -117,9 +129,7 @@ export class TimelineEngine {
     }
 
     // Narrative state
-    const narrativeWindow = TIMELINE_SPEC.narrativeWindows.find(
-      w => elapsed >= w.start && elapsed < w.end
-    );
+    const narrativeWindow = getNarrativeWindow(elapsed);
     const narrativeText = narrativeWindow?.text || null;
     const dynamicHeader = getDynamicHeader(elapsed);
 

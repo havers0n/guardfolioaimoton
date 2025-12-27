@@ -1,9 +1,12 @@
+import type { ITimeSource } from './ITimeSource';
+
 /**
  * FixedStepTimeSource - детерминированный источник времени с фиксированным шагом.
  * Используется для записи видео, где требуется стабильный временной шаг.
  */
 
-export class FixedStepTimeSource {
+export class FixedStepTimeSource implements ITimeSource {
+  private forcedTime: number | null = null;
   private currentTime: number = 0;
   private step: number; // Шаг времени в миллисекундах (1000 / fps)
   private duration: number;
@@ -20,11 +23,30 @@ export class FixedStepTimeSource {
   }
 
   /**
+   * Инициализирует источник времени (реализация ITimeSource).
+   */
+  initialize(): void {
+    this.currentTime = 0;
+    this.isRunning = true;
+  }
+
+  /**
+   * Устанавливает принудительное время (реализация ITimeSource).
+   */
+  setForcedTime(ms: number | null): void {
+    this.forcedTime = ms;
+    if (ms !== null) {
+      this.currentTime = ms;
+    }
+  }
+
+  /**
    * Сбрасывает время в начало.
    */
   reset(): void {
     this.currentTime = 0;
     this.isRunning = false;
+    this.forcedTime = null;
   }
 
   /**
@@ -64,8 +86,12 @@ export class FixedStepTimeSource {
 
   /**
    * Возвращает текущее время в миллисекундах.
+   * Если установлено принудительное время, возвращает его.
    */
   getElapsed(): number {
+    if (this.forcedTime !== null) {
+      return this.forcedTime;
+    }
     return this.currentTime;
   }
 

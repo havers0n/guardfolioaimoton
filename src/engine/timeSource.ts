@@ -1,8 +1,10 @@
+import type { ITimeSource } from './ITimeSource';
+
 /**
  * TimeSource - детерминированный источник времени для timeline engine.
  * Использует performance.now() для реального времени и поддерживает seek mode.
  */
-export class TimeSource {
+export class TimeSource implements ITimeSource {
   private startTime: number | null = null;
   private forcedTime: number | null = null;
 

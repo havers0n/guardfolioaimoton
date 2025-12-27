@@ -8,10 +8,12 @@ export { ChartElement } from './ChartElement';
 export { OverlayTextElement } from './OverlayTextElement';
 export { LogoElement } from './LogoElement';
 export {
-  createElement,
-  createElements,
-  mountElements,
   DEFAULT_ELEMENTS,
   type ElementConfig,
 } from './registry';
+export {
+  createElement,
+  createElements,
+  mountElements,
+} from './elementFactory';
 

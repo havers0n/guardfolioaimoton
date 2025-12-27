@@ -7,10 +7,13 @@ import { Element, ElementContext } from './Element';
 import { TimelineState } from '../engine/timelineSpec';
 import * as PIXI from 'pixi.js';
 import { RNG } from '../engine/rng';
+import type { Layout } from '../renderer/layout/layout';
+import { getContainerContext } from '../renderer/containerContext';
 
 export class ChartElement implements Element {
   private container: PIXI.Container | null = null;
   private viewport: { getWidth(): number; getHeight(): number } | null = null;
+  private layout: Layout | null = null;
   private chartGraphics: PIXI.Graphics | null = null;
   private riskPoints: PIXI.Graphics[] = [];
   private chartPoints: number[] = [];
@@ -26,6 +29,7 @@ export class ChartElement implements Element {
   mount(context: ElementContext): void {
     this.container = context.container;
     this.viewport = context.viewport;
+    this.layout = context.layout;
 
     // Инициализируем точки графика
     this.chartPoints = Array.from({ length: 15 }, (_, i) => {
@@ -46,14 +50,24 @@ export class ChartElement implements Element {
   }
 
   update(dt: number, state: TimelineState): void {
-    if (!this.viewport || !this.chartGraphics) return;
+    if (!this.viewport || !this.chartGraphics || !this.container) return;
 
-    const width = this.viewport.getWidth();
-    const height = this.viewport.getHeight();
-    const chartWidth = 600;
-    const chartHeight = 200;
-    const centerX = width / 2;
-    const centerY = height / 2;
+    // Обновляем layout из контекста контейнера
+    const context = getContainerContext(this.container);
+    if (context?.layout) {
+      this.layout = context.layout;
+    }
+    
+    if (!this.layout) return;
+
+    // Размеры графика через layout токены
+    // Ширина = 45% от контентной ширины (для левой колонки)
+    const chartWidth = this.layout.contentWidth * 0.45;
+    const chartHeight = chartWidth * 0.4; // Сохраняем пропорции
+    
+    // Позиционирование: левая колонка, отступ от safe.top
+    const chartX = this.layout.leftColX;
+    const chartY = this.layout.safe.top + this.layout.grid * 3;
 
     // Обновляем анимацию графика
     this.timeRef += dt * 0.05;
@@ -101,13 +115,13 @@ export class ChartElement implements Element {
       this.chartGraphics.filters = [];
     }
 
-    // Позиционируем график
-    this.chartGraphics.x = centerX - chartWidth / 2;
-    this.chartGraphics.y = centerY - chartHeight / 2;
+    // Позиционируем график через layout токены
+    this.chartGraphics.x = chartX;
+    this.chartGraphics.y = chartY;
     this.chartGraphics.alpha = opacity;
 
-    // Обновляем risk points
-    this.updateRiskPoints(state, chartWidth, chartHeight, centerX, centerY);
+    // Обновляем risk points (передаём позицию графика)
+    this.updateRiskPoints(state, chartWidth, chartHeight, chartX, chartY);
   }
 
   private generatePath(points: number[], width: number, height: number): Array<{ x: number; y: number }> {
@@ -123,10 +137,10 @@ export class ChartElement implements Element {
     state: TimelineState,
     chartWidth: number,
     chartHeight: number,
-    centerX: number,
-    centerY: number
+    chartX: number,
+    chartY: number
   ): void {
-    if (!this.viewport) return;
+    if (!this.viewport || !this.layout) return;
 
     // Risk points emergence: RISK_EMERGENCE (4s - 7s)
     const riskOpacity = state.elapsed < 4_000 
@@ -157,13 +171,13 @@ export class ChartElement implements Element {
       riskPoint.circle(0, 0, 4 * pulseScale);
       riskPoint.fill({ color: 0xef4444, alpha: riskOpacity });
 
-      riskPoint.x = centerX - chartWidth / 2 + x;
-      riskPoint.y = centerY - chartHeight / 2 + y;
+      riskPoint.x = chartX + x;
+      riskPoint.y = chartY + y;
       riskPoint.alpha = riskOpacity;
 
       // Сохраняем нормализованную позицию
-      const normalizedX = (centerX - chartWidth / 2 + x) / this.viewport.getWidth();
-      const normalizedY = (centerY - chartHeight / 2 + y) / this.viewport.getHeight();
+      const normalizedX = (chartX + x) / this.viewport.getWidth();
+      const normalizedY = (chartY + y) / this.viewport.getHeight();
       this.riskPointPositions[mapIdx] = { x: normalizedX, y: normalizedY };
     });
   }
@@ -175,7 +189,15 @@ export class ChartElement implements Element {
     return this.riskPointPositions;
   }
 
+  dispose(): void {
+    // Освобождаем ресурсы перед уничтожением
+    // Идемпотентный метод - можно вызывать несколько раз
+    // Сбрасываем timeRef для детерминизма при повторном использовании
+    this.timeRef = 0;
+  }
+
   destroy(): void {
+    this.dispose();
     if (this.chartGraphics) {
       this.chartGraphics.destroy({ children: true });
       this.chartGraphics = null;

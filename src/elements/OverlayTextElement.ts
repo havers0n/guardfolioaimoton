@@ -7,39 +7,52 @@ import { Element, ElementContext } from './Element';
 import { TimelineState } from '../engine/timelineSpec';
 import * as PIXI from 'pixi.js';
 import { getNarrativeWindow } from '../timeline';
+import type { Layout } from '../renderer/layout/layout';
+import { getContainerContext } from '../renderer/containerContext';
 
 export class OverlayTextElement implements Element {
   private container: PIXI.Container | null = null;
   private viewport: { getWidth(): number; getHeight(): number } | null = null;
+  private layout: Layout | null = null;
   private narrativeText: PIXI.Text | null = null;
 
   mount(context: ElementContext): void {
     this.container = context.container;
     this.viewport = context.viewport;
+    this.layout = context.layout;
 
-    const width = this.viewport.getWidth();
-    const height = this.viewport.getHeight();
-
-    // Narrative text
+    // Narrative text - позиционирование через layout токены
     this.narrativeText = new PIXI.Text('', {
       fontFamily: 'system-ui, -apple-system, sans-serif',
-      fontSize: 48,
+      fontSize: this.layout.typography.h1.fontSize,
       fill: 0xcbd5e1, // slate-300
       align: 'center',
       wordWrap: true,
-      wordWrapWidth: 800,
+      wordWrapWidth: this.layout.contentWidth * 0.8, // 80% от контентной ширины
       letterSpacing: -0.02,
     });
     this.narrativeText.anchor.x = 0.5;
     this.narrativeText.anchor.y = 0.5;
-    this.narrativeText.x = width / 2;
-    this.narrativeText.y = height * 0.85; // Lower third
+    this.narrativeText.x = this.layout.centerX;
+    this.narrativeText.y = this.layout.safe.bottom - this.layout.grid * 4; // Отступ от нижнего safe-area
     this.narrativeText.alpha = 0;
     this.container.addChild(this.narrativeText);
   }
 
   update(dt: number, state: TimelineState): void {
-    if (!this.narrativeText) return;
+    if (!this.narrativeText || !this.container) return;
+
+    // Обновляем layout из контекста контейнера
+    const context = getContainerContext(this.container);
+    if (context?.layout) {
+      this.layout = context.layout;
+      
+      // Обновляем позицию и размеры при изменении layout
+      this.narrativeText.x = this.layout.centerX;
+      this.narrativeText.y = this.layout.safe.bottom - this.layout.grid * 4;
+      this.narrativeText.style.fontSize = this.layout.typography.h1.fontSize;
+      this.narrativeText.style.wordWrapWidth = this.layout.contentWidth * 0.8;
+    }
 
     if (state.narrativeText) {
       this.narrativeText.text = state.narrativeText;
@@ -67,7 +80,13 @@ export class OverlayTextElement implements Element {
     }
   }
 
+  dispose(): void {
+    // Освобождаем ресурсы перед уничтожением
+    // Идемпотентный метод - можно вызывать несколько раз
+  }
+
   destroy(): void {
+    this.dispose();
     if (this.narrativeText) {
       this.narrativeText.destroy({ children: true });
       this.narrativeText = null;
